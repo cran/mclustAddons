@@ -24,6 +24,8 @@ S3method("print", "summary.densityMclustBounded")
 S3method("plot", "densityMclustBounded")
 S3method("predict", "densityMclustBounded")
 
+export("rangepowerTransform", "rangepowerBackTransform")
+
 export("GaussianMixtureMEM",
        "MclustMEM",
        "print.MclustMEM",
@@ -50,4 +52,4 @@ S3method("EntropyGMM", "Mclust")
 S3method("EntropyGMM", "matrix")
 S3method("EntropyGMM", "data.frame")
 
-export("logsumexp", "softmax")
+# export("logsumexp", "softmax", "meWeighted")

@@ -7,6 +7,9 @@ densityMclustBounded <- function(data,
                                  lbound = NULL, 
                                  ubound = NULL, 
                                  lambda = c(-3, 3),
+                                 prior = NULL,
+                                 noise = NULL,
+                                 nstart = 25,
                                  parallel = FALSE,
                                  seed = NULL,
                                  ...)
@@ -114,6 +117,9 @@ densityMclustBounded <- function(data,
                    lbound = lbound,
                    ubound = ubound,
                    lambda = lambda,
+                   prior = prior,
+                   noise = noise,
+                   nstart = nstart,
                    ...)
   }
   BIC <- sapply(fit, function(mod) if(is.null(mod)) NA else mod$bic)
@@ -297,248 +303,18 @@ predict.densityMclustBounded <- function(object, newdata,
 
 # Main Algorithm ----
 
-# old
-densityBounded <- function(data, G, modelName, # z,
-                           lambda = NULL,
-                           lbound = NULL, ubound = NULL, 
-                           epsbound = NULL,
-                           # initialization = NULL, 
-                           control = emControl(),
-                           optimControl = list(fnscale = -1,
-                                               maxit = 10, 
-                                               parscale = 0.1,
-                                               usegr = TRUE),
-                           warn = mclust.options("warn"), 
-                           verbose = FALSE, 
-                           eps = sqrt(.Machine$double.eps),
-                           ...)
-{
-  x <- as.matrix(data)
-  n <- nrow(x)
-  d <- ncol(x)
-  # z <- as.matrix(z)
-  # if(nrow(z) != n)
-  #   step("nrows(z) must be equal to nrows(data) !")
-  # G <- ncol(z)
-  G <- as.integer(G)
-  modelName <- as.character(modelName)
-  
-  # check and set boundaries parameters
-  if(is.null(lbound))  lbound <- rep(-Inf, d)
-  if(any(!is.finite(lbound)))
-    stop("no finite lower bound(s) provided!")
-  if(is.null(ubound))   ubound <- rep(+Inf, d)
-  if(is.null(epsbound)) epsbound <- rep(as.double(NA), d)
-  for(j in seq(d))
-  { 
-    lb <- if(is.numeric(lbound[j])) lbound[j] else -Inf
-    x[ x[,j] <= lb, j] <- lb # + eps
-    ub <- if(is.numeric(ubound[j])) ubound[j] else +Inf
-    x[ x[,j] >= ub, j] <- ub # - eps
-    if(is.na(epsbound[j]))
-    { 
-      if(is.finite(lb) & is.finite(ub))
-        epsbound[j] <- 0
-      else if(is.finite(lb))
-        epsbound[j] <- quantile(x[,j]-lb, probs=0.01)
-      else if(is.finite(ub))
-        epsbound[j] <- quantile(ub-x[,j], probs=0.01)
-      else epsbound[j] <- 0
-      # beps <- c(quantile(x[,j]-lbound[j], probs=0.01),
-      #           quantile(ubound[j]-x[,j], probs=0.01))
-      # epsbound[j] <- min(abs(beps)[is.finite(beps)])
-    }
-  }
-  
-  # set EM iterations parameters
-  tol <- control$tol[1]
-  itmax <- min(control$itmax[1], 1000)
-  
-  # merge optimControl default with provided args
-  optimControl.default <- eval(formals(densityBounded)$optimControl)
-  optimControl.default[names(optimControl)] <- optimControl
-  optimControl <- optimControl.default; rm(optimControl.default)
-  if(length(optimControl$parscale) != d)
-     optimControl$parscale <- rep(optimControl$parscale[1], d)
-  usegr <- optimControl$usegr; optimControl$usegr <- NULL
-  
-  if(is.null(lambda)) lambda <- c(-3,3)
-  lambdaRange <- if(is.matrix(lambda))  lambda 
-                 else  matrix(lambda, nrow = d, ncol = 2, byrow = TRUE)
-  lambdaFixed <- all(apply(lambdaRange, 1, diff) == 0)
-  # starting value for lambda
-  lambda <- if(lambdaFixed) apply(lambdaRange, 1, mean) else 
-    { 
-      lambda <- rep(1,d)
-      for(j in seq(d))
-      { 
-        lambdaOpt <- optim(par = lambda[j], 
-                           fn = marginalTransfLoglik,
-                           method = "L-BFGS-B",
-                           lower = lambdaRange[j,1],
-                           upper = lambdaRange[j,2],
-                           control = list(fnscale = -1, parscale = 0.1),
-                           # parameters of marginalTransfLoglik()
-                           data = x[,j],
-                           lbound = lbound[j],
-                           ubound = ubound[j],
-                           epsbound = epsbound[j])
-        lambda[j] <- lambdaOpt$par
-      }
-      lambda
-    }
-  lambdaInit <- lambda
-  # initial transformation
-  tx <- matrix(as.double(NA), nrow = n, ncol = d)
-  for(j in seq(d))
-  { 
-    tx[,j] <- rangepowerTransform(x[,j], 
-                                  lbound = lbound[j], 
-                                  ubound = ubound[j],
-                                  lambda = lambda[j]) 
-  }
-  
-  # initialisation using k-means with given G on the transformed variables
-  km <- kmeans(tx, centers = G, nstart = 10)
-  z  <- unmap(km$cluster)
-  # TODO: insert the possibility of a subset. It is needed?
-
-  # start algorithm
-  M_step <- mstep(modelName, data = tx, z = z)
-  if(attributes(M_step)$returnCode < 0)
-    { if(warn) warning("M-step init problems...")
-      M_step$bic <- NA
-      return(M_step) 
-  }
-  
-  M_step <- c(M_step, list(data = tx))
-  E_step <- do.call("estep", M_step)
-  E_step <- c(E_step, list(data = x, lambda = lambda,
-                           lbound = lbound, ubound = ubound,
-                           epsbound = epsbound))
-  loglik <- do.call("tloglik", E_step)
-  if(is.na(loglik)) 
-    { if(warn) warning("E-step init problems...")
-      E_step$bic <- NA
-      return(E_step) 
-  }
-  
-  loglik0 <- loglik - 0.5*abs(loglik)
-  iter <- 1
-  if(verbose) 
-    { cat("\nG =", G, "  Model =", modelName)
-      cat("\niter =", iter, "  lambda =", lambda, "  loglik =", loglik) }
-  
-  while((loglik - loglik0)/(1+abs(loglik)) > tol & iter < itmax)
-  { 
-    loglik0 <- loglik
-    iter <- iter + 1
-    # optimise tloglik for lambda
-    if(!lambdaFixed)
-      { 
-        # central difference approx to derivative
-        Dtloglik <- function(lambda, ...)
-        {
-          h <- eps*(abs(lambda)+eps)
-          (do.call("tloglik", c(list(lambda = lambda+h), list(...))) +
-            do.call("tloglik", c(list(lambda = lambda-h), list(...))) -
-            2*do.call("tloglik", c(list(lambda = lambda), list(...)))) /
-            (2*h)
-        }
-        
-        lambdaOpt <- try(optim(par = lambda,
-                               fn = tloglik,
-                               gr = if(usegr) Dtloglik else NULL,
-                               method = "L-BFGS-B",
-                               lower = lambdaRange[,1],
-                               upper = lambdaRange[,2],
-                               control = optimControl,
-                               # parameters of tloglik()
-                               data = x,
-                               modelName = modelName,
-                               G = G,
-                               lbound = lbound,
-                               ubound = ubound,
-                               epsbound = epsbound,
-                               parameters = E_step$parameters),
-            silent = TRUE)
-        if(inherits(lambdaOpt, "try-error"))
-          warning("can't perform marginal optimisation of lambda value(s)...")
-        else
-          lambda <- lambdaOpt$par
-    }
-    # transform variables with updated lambda
-    for(j in seq(d))
-    { 
-      tx[,j] <- rangepowerTransform(x[,j], 
-                                    lbound = lbound[j], 
-                                    ubound = ubound[j],
-                                    lambda = lambda[j])
-    }
-    # compute EM-step
-    M_step <- mstep(modelName, data = tx, z = E_step$z)
-    if(attributes(M_step)$returnCode < 0)
-      { if(warn) 
-          warning(attributes(M_step)$WARNING, " ...")
-        break }
-    M_step <- c(M_step, list(data = tx))
-    E_step <- do.call("estep", M_step) 
-    E_step <- c(E_step, list(data = x, lambda = lambda,
-                             lbound = lbound, ubound = ubound,
-                             epsbound = epsbound))
-    loglik <- do.call("tloglik", E_step)
-    #
-    if(is.na(loglik)) 
-      { if(warn) 
-          warning("EM convergence problems...")
-        break }
-    if(verbose) 
-      cat("\niter =", iter, "  lambda =", lambda, "  loglik =", loglik)
-  }
-  
-  # collect info & estimates  
-  mod <- E_step
-  mod$data <- x
-  for(j in seq(d))
-  { 
-    tx[,j] <- rangepowerTransform(x[,j], 
-                                  lbound = lbound[j], 
-                                  ubound = ubound[j],
-                                  lambda = lambda[j])
-  }
-  mod$tdata <- tx
-  names(lambda) <- names(lambdaInit) <- colnames(data)
-  mod$lambda <- lambda
-  mod$lambdaInit <- lambdaInit
-  mod$lbound <- lbound 
-  mod$ubound <- ubound 
-  mod$epsbound <- epsbound
-  mod$loglik <- loglik
-  mod$iter <- iter
-  mod$df <- nMclustParams(modelName, d, G) + if(lambdaFixed) 0 else d
-  mod$bic <- 2*loglik - mod$df*log(n)
-  mod$classification <- map(mod$z)
-  mod$uncertainty <- 1 - rowMax(mod$z)
-  mod$density <- do.call("tdens", mod)
-  orderedNames <- c("data", "n", "d", "modelName", "G",
-                    "lbound", "ubound", "epsbound", "lambdaInit",
-                    "tdata", "loglik", "iter", "df", "bic", 
-                    "parameters", "lambda", "z", 
-                    "classification", "uncertainty",
-                    "density")
-  return(mod[orderedNames])
-}
-
-# new version
 densityBounded <- function(data, G, modelName,
                            lambda = NULL,
                            lbound = NULL, ubound = NULL, 
                            epsbound = NULL,
+                           prior = NULL,
+                           noise = NULL,
                            control = emControl(),
                            optimControl = list(fnscale = -1,
                                                maxit = 10, 
                                                parscale = 0.1,
                                                usegr = TRUE),
+                           nstart = nstart,
                            warn = mclust.options("warn"), 
                            verbose = FALSE, 
                            eps = sqrt(.Machine$double.eps),
@@ -586,7 +362,6 @@ densityBounded <- function(data, G, modelName,
   if(length(optimControl$parscale) != d)
      optimControl$parscale <- rep(optimControl$parscale[1], d)
   usegr <- optimControl$usegr; optimControl$usegr <- NULL
-  
   if(is.null(lambda)) lambda <- c(-3,3)
   lambdaRange <- if(is.matrix(lambda))  lambda 
                  else  matrix(lambda, nrow = d, ncol = 2, byrow = TRUE)
@@ -622,44 +397,50 @@ densityBounded <- function(data, G, modelName,
                                   ubound = ubound[j],
                                   lambda = lambda[j]) 
   }
-  
+
   # initialisation using k-means with given G on the transformed variables
-  km <- kmeans(tx, centers = G, nstart = 10)
+  km <- kmeans(tx, centers = G, nstart = nstart)
   z  <- unmap(km$cluster)
+  
+  # TODO: noise component?
+  Vinv <- NULL
   # TODO: insert the possibility of a subset. It is needed?
 
   # start algorithm
-  M_step <- mstep(modelName, data = tx, z = z)
-  if(attributes(M_step)$returnCode < 0)
+  ME_step <- me(data = tx, modelName = modelName, 
+                z = z, prior = prior, Vinv = Vinv, 
+                warn = warn, ...)
+  if(is.na(ME_step$loglik))
   { 
-    if(warn) warning("M-step init problems...")
-    M_step$bic <- NA
-    return(M_step) 
+    if(warn) warning("ME init problems...")
+    ME_step$bic <- NA
+    return(ME_step) 
   }
-  
-  M_step <- c(M_step, list(data = tx))
-  E_step <- do.call("estep", M_step)
-  E_step <- c(E_step, list(data = x, lambda = lambda,
-                           lbound = lbound, ubound = ubound,
-                           epsbound = epsbound))
-  loglik <- do.call("tloglik", E_step)
+  #
+  ME_step <- c(ME_step, list(data = x, lambda = lambda,
+                             lbound = lbound, ubound = ubound,
+                             epsbound = epsbound))
+  loglik <- do.call("tloglik", ME_step)
   if(is.na(loglik)) 
-    { if(warn) warning("E-step init problems...")
-      E_step$bic <- NA
-      return(E_step) 
+  { 
+    if(warn) warning("EM init problems...")
+    ME_step$bic <- NA
+    return(ME_step) 
   }
   
   loglik0 <- loglik - 0.5*abs(loglik)
   iter <- 1
   if(verbose) 
-    { cat("\nG =", G, "  Model =", modelName)
-      cat("\niter =", iter, "  lambda =", lambda, "  loglik =", loglik) }
+  { 
+    cat("\nG =", G, "  Model =", modelName)
+    cat("\niter =", iter, "  lambda =", lambda, "  loglik =", loglik) 
+  }
   
   while((loglik - loglik0)/(1+abs(loglik)) > tol & iter < itmax)
   { 
     loglik0 <- loglik
     iter <- iter + 1
-    # optimise tloglik for lambda
+    # optimize tloglik for lambda
     if(!lambdaFixed)
       { 
         # central difference approx to derivative
@@ -686,7 +467,7 @@ densityBounded <- function(data, G, modelName,
                                lbound = lbound,
                                ubound = ubound,
                                epsbound = epsbound,
-                               parameters = E_step$parameters),
+                               parameters = ME_step$parameters),
             silent = TRUE)
         if(inherits(lambdaOpt, "try-error"))
           warning("can't perform marginal optimisation of lambda value(s)...")
@@ -701,19 +482,15 @@ densityBounded <- function(data, G, modelName,
                                     ubound = ubound[j],
                                     lambda = lambda[j])
     }
-    # compute EM-step
-    M_step <- mstep(modelName, data = tx, z = E_step$z)
-    if(attributes(M_step)$returnCode < 0)
-    { 
-      if(warn) warning(attributes(M_step)$WARNING, " ...")
-      break 
-    }
-    M_step <- c(M_step, list(data = tx))
-    E_step <- do.call("estep", M_step) 
-    E_step <- c(E_step, list(data = x, lambda = lambda,
-                             lbound = lbound, ubound = ubound,
-                             epsbound = epsbound))
-    loglik <- do.call("tloglik", E_step)
+    # compute ME-step
+    ME_step <- me(data = tx, modelName = modelName, 
+                  z = ME_step$z, 
+                  prior = prior, Vinv = Vinv, 
+                  warn = warn, ...)
+    ME_step <- c(ME_step, list(data = x, lambda = lambda,
+                               lbound = lbound, ubound = ubound,
+                               epsbound = epsbound))
+    loglik <- do.call("tloglik", ME_step)
     #
     if(is.na(loglik)) 
     { 
@@ -725,7 +502,7 @@ densityBounded <- function(data, G, modelName,
   }
   
   # collect info & estimates  
-  mod <- E_step
+  mod <- ME_step
   mod$data <- x
   for(j in seq(d))
   { 
@@ -818,29 +595,27 @@ tdens <- function(data, modelName, G,
     stop("mixing proportions must be supplied")
   noise <- (!is.null(parameters$Vinv))
   if(G > 1)
-    { if(noise) 
-        { pro <- pro[-length(pro)] }
-      if(any(proz <- pro == 0)) 
-        { pro <- pro[!proz]
-          cden <- cden[, !proz, drop = FALSE] }
-      cden <- sweep(cden, 2, FUN = "+", STATS = log(pro))
+  { 
+    if(noise) 
+      { pro <- pro[-length(pro)] }
+    if(any(proz <- pro == 0)) 
+      { pro <- pro[!proz]
+        cden <- cden[, !proz, drop = FALSE] 
+      }
   }
   
   if(what == "z")
   { 
     # return probability of belong to mixture components
-    # z <- cden
-    # z <- sweep(z, MARGIN = 1, FUN = "-", STATS = apply(z, 1, mclust:::logsumexp))
-    # if(!logarithm) z <- exp(z)
-    z <- softmax(cden)
+    z <- mclust::softmax(cden, log(pro))
     if(logarithm) z <- log(z)
     return(z) 
   }
   
-  # maxlog <- rowMax(cden)
-  # cden <- sweep(cden, 1, FUN = "-", STATS = maxlog)
-  # den <- log(rowSum(exp(cden))) + maxlog
-  den <- logsumexp(cden)
+  # cden <- sweep(cden, 2, FUN = "+", STATS = log(pro))
+  # den <- logsumexp(cden)
+  den <- mclust::logsumexp(cden, log(pro))
+  
   if(noise) 
     den <- den + parameters$pro[G+1]*parameters$Vinv
   if(!logarithm) den <- exp(den)
@@ -1404,6 +1179,39 @@ rangepowerTransform <- function(x, lbound = -Inf, ubound = +Inf, lambda = 1)
   tx <- rangeTransform(x, lbound = lbound, ubound = ubound)
   tx <- powerTransform(tx, lambda = lambda)
   return(tx)
+}
+
+# Range-Power back transformation 
+rangepowerBackTransform <- function(y, lbound = -Inf, ubound = +Inf, lambda = 1)
+{ 
+  y <- as.vector(y)
+  # power back-transform
+  if(lambda == 0)
+  {
+    ty <- exp(y) 
+  } else
+  {
+    ty <- (lambda*y + 1)^(1/lambda)
+  }
+  # interpolate near the boundaries if any numerical problem
+  if(any(i <- is.na(ty)))
+  { 
+    ty[i] <- exp(predict(lm(log(ty) ~ y, subset = which(!i)), 
+                         newdata = list(y = y[i]))) 
+  }
+
+  # range back-transform
+  if(is.finite(lbound) & is.finite(ubound))
+  { 
+    # Lower and upper bound case
+    ty <- (lbound + ubound * ty)/(1+ty)
+  } else
+  { 
+    # Lower bound case
+    ty <- ty + lbound
+  }
+  #
+  return(ty)
 }
 
 # Derivative of Range-Power transformation 

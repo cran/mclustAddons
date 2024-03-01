@@ -98,28 +98,23 @@ persp3D <- function(x, y, z, theta = 30, phi = 20, d = 5, expand = 2/3,
   invisible(out)
 }
 
-# logsumexp <- function(x)
+# This function is superseded by logsumexp() in mclust >= 6.1
+# logsumexp <- function(x, v = NULL)
 # { 
-# # Numerically efficient implementation of log(sum(exp(x)))
-#   max <- max(x)
-#   max + log(sum(exp(x-max)))
+#   x <- as.matrix(x)
+#   v <- if(is.null(v)) double(ncol(x)) else as.vector(v)
+#   if(length(v) != ncol(x))
+#     stop("Non-conforming arguments in logsumexp")
+#   # as.vector(logsumexp_Rcpp(x,v))
+#   logsumexp_Rcpp(x,v)
 # }
 
-logsumexp <- function(x, v = NULL)
-{ 
-  x <- as.matrix(x)
-  v <- if(is.null(v)) rep(as.double(0), length.out = ncol(x)) else as.vector(v)
-  if(length(v) != ncol(x))
-    stop("Non-conforming arguments in logsumexp")
-  # as.vector(logsumexp_Rcpp(x,v))
-  logsumexp_Rcpp(x,v)
-}
-
-softmax <- function(x, v = NULL)
-{ 
-  x <- as.matrix(x)
-  v <- if(is.null(v)) rep(as.double(0), length.out = ncol(x)) else as.vector(v)
-  if(length(v) != ncol(x))
-    stop("Non-conforming arguments in logsumexp")
-  softmax_Rcpp(x,v)
-}
+# This function is superseded by logsumexp() in mclust >= 6.1
+# softmax <- function(x, v = NULL)
+# { 
+#   x <- as.matrix(x)
+#   v <- if(is.null(v)) double(ncol(x)) else as.vector(v)
+#   if(length(v) != ncol(x))
+#     stop("Non-conforming arguments in logsumexp")
+#   softmax_Rcpp(x,v)
+# }

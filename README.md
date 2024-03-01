@@ -15,7 +15,7 @@ An [R](https://www.r-project.org/) package extending the functionality of the [m
 
 You can install the released version of **mclustAddons** from CRAN using:
 
-```{r}
+```
 install.packages("mclustAddons")
 ```
 
@@ -23,13 +23,12 @@ install.packages("mclustAddons")
 
 For an introduction to the main functions and several examples see the vignette **A quick tour of mclustAddons**, which is available as
 
-```{r}
+```
 vignette("mclustAddons")
 ```
 
 The vignette is also available in the *Vignette* section on the navigation bar on top of the package's web page.
 
-<br><br>
 
 ## References
 

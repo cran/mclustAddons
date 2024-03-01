@@ -89,7 +89,7 @@ summary(MEM)
 plot(MEM)
 plot(MEM, addDensity = FALSE)
 
-## ---- out.width="50%"---------------------------------------------------------
+## ----out.width="50%"----------------------------------------------------------
 EntropyGauss(1)       # population entropy
 x = rnorm(1000)       # generate sample
 EntropyGauss(var(x))  # sample entropy assuming Gaussian distribution
@@ -97,7 +97,7 @@ mod = densityMclust(x, plot = FALSE)
 EntropyGMM(mod)       # GMM-based entropy estimate
 plot(mod, what = "density", data = x, breaks = 31); rug(x)
 
-## ---- out.width="50%"---------------------------------------------------------
+## ----out.width="50%"----------------------------------------------------------
 cl = rbinom(1000, size = 1, prob = 0.5)
 x = ifelse(cl == 1, rnorm(1000, 2, 1), rnorm(1000, -2, 1))   # generate sample
 mod = densityMclust(x, plot = FALSE)

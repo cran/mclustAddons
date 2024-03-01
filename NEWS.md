@@ -1,16 +1,34 @@
+# mclustAddons 0.8 (2024-02) 
+
+- Starting with this version mclust >= 6.1 is needed because of using
+  efficient `softmax()` and `logsumexp()` functions coded in Fortran.
+  This replaces previously included functions of the same name (now
+  removed).
+- Added `prior` and `nstart` arguments to `densityMclustBounded()` 
+  function.
+- Added `rangepowerBackTransform()`.
+- Exported both `rangepowerTransform()` and `rangepowerBackTransform()`.
+- Bug fixes.
+
+# mclustAddons 0.7.2 (2023-01)
+
+- Bug fixes.
+
 # mclustAddons 0.7.1 (2022-11)
 
 - Small bug fix in help page.
 
 # mclustAddons 0.7 (2022-11)
 
-- Add code for computing entropy via Gaussian mixtures. See `help(EntropyGMM)`.
+- Add code for computing entropy via Gaussian mixtures. See 
+  `help(EntropyGMM)`.
 - Add efficient Rcpp-based functions to compute log-sum-exp and softmax.
 
 # mclustAddons 0.6 (2021-12)
 
 - Bug fixes.
-- Allowed to have both `lbound = NULL` and `ubound = NULL`, in which case only power transformation is performed.
+- Allowed to have both `lbound = NULL` and `ubound = NULL`, in which 
+  case only power transformation is performed.
 
 # mclustAddons 0.5 (2021-09)
 

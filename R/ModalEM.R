@@ -61,12 +61,7 @@ GaussianMixtureMEM <- function(data, pro, mu, sigma,
     z <- cdens(modelName = if(d > 1) "VVV" else "V",
                data = x,
                parameters = par, logarithm = TRUE)
-    # z <- cbind(z) # drop redundant attributes
-    # z <- sweep(z, MARGIN = 2, FUN = "+", STATS = log(pro))
-    # z <- sweep(z, MARGIN = 1, FUN = "-", 
-    #            STATS = apply(z, 1, mclust:::logsumexp))
-    # z <- exp(z)
-    z <- softmax(z, log(pro))
+    z <- mclust::softmax(z, log(pro))
     return(z)
   }
   

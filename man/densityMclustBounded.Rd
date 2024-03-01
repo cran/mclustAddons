@@ -16,6 +16,9 @@ densityMclustBounded(data,
                      lbound = NULL, 
                      ubound = NULL, 
                      lambda = c(-3, 3),
+                     prior = NULL,
+                     noise = NULL,
+                     nstart = 25,
                      parallel = FALSE,
                      seed = NULL,
                      \dots)
@@ -38,6 +41,12 @@ See \code{\link[mclust]{mclustModelNames}} for a descripton of available models.
 \item{ubound}{Numeric vector proving upper bounds for variables.}
 
 \item{lambda}{A numeric vector providing the range of searched values for the transformation parameter(s).}
+
+\item{prior}{A function specifying a prior for Bayesian regularization of Gaussian mixtures. See \code{\link[mclust]{priorControl}} for details.}
+
+\item{noise}{A specification for the noise component. Currently, not available.}
+
+\item{nstart}{An integer value specifying the number of replications of k-means clustering to be used for initializing the EM algorithm. See \link{kmeans}.}
 
 \item{parallel}{
 An optional argument which allows to specify if the search over all possible models should be run sequentially (default) or in parallel. 

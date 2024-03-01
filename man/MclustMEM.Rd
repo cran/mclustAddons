@@ -45,8 +45,10 @@ Returns an object of class \code{'MclustMEM'}. See also the output returned by \
 Scrucca L. (2021) A fast and efficient Modal EM algorithm for Gaussian mixtures. \emph{Statistical Analysis and Data Mining}, 14:4, 305–314. https://doi.org/10.1002/sam.11527
 }
 
-\examples{\donttest{
+\examples{
+\donttest{
 data(Baudry_etal_2010_JCGS_examples, package = "mclust")
+
 plot(ex4.1)
 GMM <- Mclust(ex4.1)
 plot(GMM, what = "classification")
