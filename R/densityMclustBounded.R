@@ -1,6 +1,140 @@
-##
-## Model-based mixture density estimation for bounded data
-##
+#' Model-based mixture density estimation for bounded data
+#' 
+#' @description
+#' Density estimation for bounded data via transformation-based approach for
+#' Gaussian mixtures.
+#' 
+#' @aliases densityMclustBounded print.densityMclustBounded
+#' summary.densityMclustBounded print.summary.densityMclustBounded
+#' 
+#' @param data A numeric vector, matrix, or data frame of observations. If a
+#' matrix or data frame, rows correspond to observations and columns correspond
+#' to variables.
+#' @param G An integer vector specifying the numbers of mixture components. By
+#' default `G=1:3`.
+#' @param modelNames A vector of character strings indicating the Gaussian
+#' mixture models to be fitted on the transformed-data space.  See
+#' [mclust::mclustModelNames()] for a descripton of available models.
+#' @param lbound Numeric vector proving lower bounds for variables.
+#' @param ubound Numeric vector proving upper bounds for variables.
+#' @param lambda A numeric vector providing the range (min and max) of searched
+#' values for the transformation parameter(s). If a matrix is provided, then
+#' for each variable a row should be provided containing the range of lambda
+#' values for the transformation parameter. If a variable must have a fixed
+#' lambda value, the provided min and max values should be equal. See examples
+#' below.
+#' @param prior A function specifying a prior for Bayesian regularization of
+#' Gaussian mixtures. See [mclust::priorControl()] for details.
+#' @param initialization A list containing one or more of the following
+#' components: 
+#' * `noise` A logical or numeric vector indicating an initial guess as to 
+#' which observations are noise in the data. If numeric the entries should
+#' correspond to row indexes of the data. If logical an automatic 
+#' entropy-based guess of noisy observations is made. When supplied, a noise 
+#' term will be added to the model in the estimation.
+#' * `Vinv` When a noise component is included in the model, this is a 
+#' numerical optional argument providing the reciprocal of the volume of the
+#' data.  By default, the [mclust::hypvol()] is used on the transformed data 
+#' from a preliminary model.
+#' @param nstart An integer value specifying the number of replications of
+#' k-means clustering to be used for initializing the EM algorithm. See
+#' [kmeans()].
+#' @param parallel An optional argument which allows to specify if the search
+#' over all possible models should be run sequentially (default) or in
+#' parallel.
+#' 
+#' For a single machine with multiple cores, possible values are: 
+#' * a logical value specifying if parallel computing should be used (`TRUE`) 
+#' or not (`FALSE`, default) for evaluating the fitness function; 
+#' * a numerical value which gives the number of cores to employ. By default, 
+#' this is obtained from the function [parallel::detectCores()]; 
+#' * a character string specifying the type of parallelisation to use. This 
+#' depends on system OS: on Windows OS only `"snow"` type functionality is 
+#' available, while on Unix/Linux/Mac OSX both `"snow"` and `"multicore"` 
+#' (default) functionalities are available.
+#' 
+#' In all the cases described above, at the end of the search the cluster is
+#' automatically stopped by shutting down the workers.
+#' 
+#' If a cluster of multiple machines is available, evaluation of the fitness
+#' function can be executed in parallel using all, or a subset of, the cores
+#' available to the machines belonging to the cluster. However, this option
+#' requires more work from the user, who needs to set up and register a
+#' parallel back end.  In this case the cluster must be explicitely stopped
+#' with [parallel::stopCluster()].
+#' @param seed An integer value containing the random number generator state.
+#' This argument can be used to replicate the result of k-means initialisation
+#' strategy. Note that if parallel computing is required, the \pkg{doRNG}
+#' package must be installed.
+#' @param \dots Further arguments passed to or from other methods.
+#' @param object An object of class `'densityMclustBounded'`.
+#' @param parameters A logical, if `TRUE` the estimated parameters of mixture
+#' components are printed.
+#' 
+#' @return Returns an object of class `'densityMclustBounded'`.
+#' 
+#' @details
+#' For more details see 
+#' \code{vignette("mclustAddons")}
+#' 
+#' @author Luca Scrucca
+#' 
+#' @seealso 
+#' [predict.densityMclustBounded()], [plot.densityMclustBounded()].
+#' 
+#' @references 
+#' Scrucca L. (2019) A transformation-based approach to Gaussian
+#' mixture density estimation for bounded data. *Biometrical Journal*,
+#' 61:4, 873–888. \doi{doi:10.1002/bimj.201800174}
+#' 
+#' @examples
+#' \donttest{
+#' # univariate case with lower bound
+#' x <- rchisq(200, 3)
+#' xgrid <- seq(-2, max(x), length=1000)
+#' f <- dchisq(xgrid, 3)  # true density
+#' dens <- densityMclustBounded(x, lbound = 0)
+#' summary(dens)
+#' summary(dens, parameters = TRUE)
+#' plot(dens, what = "BIC")
+#' plot(dens, what = "density")
+#' lines(xgrid, f, lty = 2)
+#' plot(dens, what = "density", data = x, breaks = 15)
+#' 
+#' # univariate case with lower & upper bounds
+#' x <- rbeta(200, 5, 1.5)
+#' xgrid <- seq(-0.1, 1.1, length=1000)
+#' f <- dbeta(xgrid, 5, 1.5)  # true density
+#' dens <- densityMclustBounded(x, lbound = 0, ubound = 1)
+#' summary(dens)
+#' plot(dens, what = "BIC")
+#' plot(dens, what = "density")
+#' plot(dens, what = "density", data = x, breaks = 9)
+#' 
+#' # bivariate case with lower bounds
+#' x1 <- rchisq(200, 3)
+#' x2 <- 0.5*x1 + sqrt(1-0.5^2)*rchisq(200, 5)
+#' x <- cbind(x1, x2)
+#' plot(x)
+#' dens <- densityMclustBounded(x, lbound = c(0,0))
+#' summary(dens, parameters = TRUE)
+#' plot(dens, what = "BIC")
+#' plot(dens, what = "density")
+#' plot(dens, what = "density", type = "hdr")
+#' plot(dens, what = "density", type = "persp")
+#' # specify different ranges for the lambda values of each variable
+#' dens1 <- densityMclustBounded(x, lbound = c(0,0), 
+#'                               lambda = matrix(c(-2,2,0,1), 2, 2, byrow=TRUE))
+#' # set lambda = 0 fixed for the second variable
+#' dens2 <- densityMclustBounded(x, lbound = c(0,0), 
+#'                               lambda = matrix(c(0,1,0,0), 2, 2, byrow=TRUE))
+#' 
+#' dens[c("lambdaRange", "lambda", "loglik", "df")]
+#' dens1[c("lambdaRange", "lambda", "loglik", "df")]
+#' dens2[c("lambdaRange", "lambda", "loglik", "df")]
+#' }
+#' 
+#' @export
 
 densityMclustBounded <- function(data, 
                                  G = NULL, modelNames = NULL,
@@ -8,7 +142,7 @@ densityMclustBounded <- function(data,
                                  ubound = NULL, 
                                  lambda = c(-3, 3),
                                  prior = NULL,
-                                 noise = NULL,
+                                 initialization = NULL,
                                  nstart = 25,
                                  parallel = FALSE,
                                  seed = NULL,
@@ -23,11 +157,10 @@ densityMclustBounded <- function(data,
     { if(d == 1) colnames(data) <- varname
       else       colnames(data) <- paste0(varname, seq(d)) }
 
-  if(is.null(G)) 
-    { G <- 1:3 }
-  else 
-    { G <- sort(as.integer(unique(G))) }
+  # check G
+  G <- if(is.null(G)) 1L:3L else sort(as.integer(unique(G)))
   
+  # check modelNames
   if(is.null(modelNames)) 
     { if(d == 1) 
         { modelNames <- c("E", "V") }
@@ -42,11 +175,7 @@ densityMclustBounded <- function(data,
         }
     }
   }
-  
-  nG <- length(G)
-  nM <- length(modelNames)
-  if(nG*nM < 2) parallel <- FALSE
-  
+
   # check lower bound
   lbound <- if(is.null(lbound)) rep(-Inf, d) # rep(as.double(NA), d)
             else                as.numeric(lbound)
@@ -56,6 +185,7 @@ densityMclustBounded <- function(data,
   if(length(out.lbound))
      stop("lower bound >= than min of input data for variable(s) ", 
           paste(out.lbound, collapse =" "))
+  
   # check upper bound
   ubound <- if(is.null(ubound)) rep(+Inf, d) # rep(as.double(NA), d)
             else                as.numeric(ubound)
@@ -65,12 +195,48 @@ densityMclustBounded <- function(data,
   if(length(out.ubound))
      stop("upper bound <= than max of input data for variable(s) ", 
           paste(out.ubound, collapse =" "))
+  
   # check lambda
   lambda <- na.omit(lambda)
   lambda <- if(is.matrix(lambda)) lambda 
             else  matrix(lambda, nrow = d, ncol = 2, byrow = TRUE)
   rownames(lambda) <- colnames(data)
   
+  # noise component
+  noise <- Vinv <- NULL
+  if(!is.null(initialization$noise))
+  {
+    noise <- as.vector(initialization$noise)
+    if(is.null(initialization$Vinv))
+    {
+      mod0 <- densityMclustBounded(data, G = G, modelNames = "VVV", 
+                                   lbound = lbound, ubound = ubound, 
+                                   lambda = lambda, prior = prior, 
+                                   initialization = list(noise = NULL), 
+                                   verbose = FALSE)
+      Vinv <- hypvol(mod0$tdata, reciprocal = TRUE)
+      if(isTRUE(noise))
+      {
+        h <- -1/mod0$n * mclust::dens(data = mod0$tdata, 
+                                      modelName = mod0$modelName, 
+                                      parameters = mod0$parameters, 
+                                      logarithm = TRUE)
+        u <- -log(Vinv)/mod0$n
+        noise <- which(h > u)
+      }
+    } else
+    {
+      Vinv <- initialization$Vinv
+    }
+    if(!is.numeric(noise)) noise <- which(noise)
+    if(any(match(noise, 1:n, nomatch = 0) == 0))
+      stop("numeric or logical vector for noise must correspond to row indexes of data")
+  }
+  nnoise <- length(noise)
+  nG <- length(G) # length(G != 0)
+  nM <- length(modelNames)
+  if(nG*nM < 2) parallel <- FALSE
+
   # Start parallel computing (if needed)
   if(is.logical(parallel))
     { if(parallel) 
@@ -109,16 +275,14 @@ densityMclustBounded <- function(data,
   grid <- expand.grid(modelName = modelNames, G = G)
   fit <- foreach(i = 1:nrow(grid)) %DO%
   { # fit model
-    densityBounded(data, 
-                   # z = unmap(hclass(initialization$hcPairs, 
-                   #                  G = as.numeric(grid$G[i]))),
+    densityBounded(data,
                    G = grid$G[i],
                    modelName = grid$modelName[i], 
                    lbound = lbound,
                    ubound = ubound,
                    lambda = lambda,
                    prior = prior,
-                   noise = noise,
+                   noise = noise, Vinv = Vinv,
                    nstart = nstart,
                    ...)
   }
@@ -135,26 +299,43 @@ densityMclustBounded <- function(data,
   mod$BIC <- BIC
   mod$seed <- seed
   mod$lambdaRange <- lambda
+  mod$hypvol <- if(is.na(mod$Vinv)) NA else 1/Vinv
+  mod$Vinv <- NULL
   class(mod) <- "densityMclustBounded"
   return(mod)
 }
 
+#' @exportS3Method
 print.densityMclustBounded <- function (x, digits = getOption("digits"), ...) 
 {
   object <- x
-  cat("'", class(object)[1], "' model object:", sep = "")
+  txt <- paste0("'", class(object)[1], "' model object: ")
+  noise <- is.numeric(object$Vinv)
+  txt <- if(object$G == 0 & noise)
+  { 
+    paste0(txt, "single noise component") 
+  } else
+  { 
+    paste0(txt, "(", object$model, ",", object$G, ")",
+           if(noise) " + noise component") 
+  }
+  cat(txt, "\n")  
   tab <- with(x, cbind("lower" = lbound, "upper" = ubound))
   rownames(tab) <- colnames(x$data)
-  names(dimnames(tab)) <- c(" Boundaries:", "")
+  names(dimnames(tab)) <- c("Boundaries:", "")
   print(tab, digits = digits)
-  M <- mclust::mclustModelNames(object$model)$type
-  G <- object$G
-  cat(" Best model: ", M, " (", object$model, ") with ", 
-      G, " components\n", sep = "")
+  # M <- mclust::mclustModelNames(object$model)$type
+  # G <- object$G
+  # cat(" Best model: ", M, " (", object$model, ") with ", 
+  #     G, " components\n", sep = "")
+  cat("\nAvailable components:\n")
+  print(names(x))
   invisible()
 }
 
-summary.densityMclustBounded <- function(object, parameters = FALSE, classification = FALSE, ...)
+#' @rdname densityMclustBounded
+#' @exportS3Method
+summary.densityMclustBounded <- function(object, parameters = FALSE, ...)
 {
   # collect info
   G  <- object$G
@@ -165,10 +346,13 @@ summary.densityMclustBounded <- function(object, parameters = FALSE, classificat
   names(pro) <- if(noise) c(seq_len(G),0) else seq(G)
   mean <- object$parameters$mean
   if(object$d > 1)
-    { sigma <- object$parameters$variance$sigma }
-  else
-    { sigma <- rep(object$parameters$variance$sigmasq, object$G)[1:object$G]
-      names(sigma) <- names(mean) }
+  { 
+    sigma <- object$parameters$variance$sigma 
+  } else
+  { 
+    sigma <- rep(object$parameters$variance$sigmasq, object$G)[1:object$G]
+    names(sigma) <- names(mean) 
+  }
   varnames <- colnames(object$data)
   tab1 <- with(object, rbind("lower" = lbound, "upper" = ubound))
   colnames(tab1) <- varnames
@@ -185,44 +369,47 @@ summary.densityMclustBounded <- function(object, parameters = FALSE, classificat
               bic = object$bic, icl = mclust:::icl.Mclust(object),
               pro = pro, mean = mean, variance = sigma,
               noise = noise, prior = attr(object$BIC, "prior"), 
-              classification = object$classification, 
-              printParameters = parameters, 
-              printClassification = classification)
+              printParameters = parameters)
   class(obj) <- "summary.densityMclustBounded"
   return(obj)
 }
 
+#' @exportS3Method
 print.summary.densityMclustBounded <- function(x, digits = getOption("digits"), ...)
 {
-  
-  if(!requireNamespace("cli", quietly = TRUE) |
-     !requireNamespace("crayon", quietly = TRUE))
-  {    
-    cat(paste0("-- ", x$title, " "))
-    cat(paste0(rep("-", 59 - nchar(x$title)-4)), sep="", "\n")
-  } else 
-  {
-    cat(cli::rule(left = crayon::bold(x$title), width = 59), "\n")
-  }
+  # TODO: remove
+  # if(!requireNamespace("cli", quietly = TRUE) |
+  #    !requireNamespace("crayon", quietly = TRUE))
+  # {    
+  #   cat(paste0("-- ", x$title, " "))
+  #   cat(paste0(rep("-", 59 - nchar(x$title)-4)), sep="", "\n")
+  # } else 
+  # {
+    cat(cli::rule(left = cli::style_bold(x$title), width = 59), "\n")
+  # }
   #
   print(x$boundaries, digits = digits)
   #
   if(is.null(x$modelName))
-    { cat("\nModel with only a noise component") }
-  else
-    { cat("\nModel ", x$modelName, " (", 
+  { 
+    cat("\nModel with only a noise component") 
+  } else
+  { 
+    cat("\nModel ", x$modelName, " (", 
         mclustModelNames(x$modelName)$type, ") model with ", 
         x$G, ifelse(x$G > 1, " components", " component"), "\n",
         if(x$noise) "and a noise term ", 
         "on the transformation scale:\n\n",
-        sep = "") }
+        sep = "") 
+  }
   #
   if(!is.null(x$prior))
-    { cat("Prior: ")
-      cat(x$prior$functionName, "(", 
-          paste(names(x$prior[-1]), x$prior[-1], sep = " = ", 
-                collapse = ", "), ")", sep = "")
-      cat("\n\n")
+  { 
+    cat("Prior: ")
+    cat(x$prior$functionName, "(", 
+        paste(names(x$prior[-1]), x$prior[-1], sep = " = ", 
+              collapse = ", "), ")", sep = "")
+    cat("\n\n")
   }
   #
   tab <- data.frame("log-likelihood" = x$loglik, "n" = x$n, 
@@ -234,34 +421,83 @@ print.summary.densityMclustBounded <- function(x, digits = getOption("digits"), 
   print(x$lambda, digits = digits)
   #
   if(x$printParameters)
-  { cat("\nMixing probabilities:\n")
+  { 
+    cat("\nMixing probabilities:\n")
     print(x$pro, digits = digits)
     cat("\nMeans:\n")
     print(x$mean, digits = digits)
     cat("\nVariances:\n")
     if(x$d > 1) 
-    { for(g in 1:x$G)
-    { cat("[,,", g, "]\n", sep = "")
-      print(x$variance[,,g], digits = digits) }
-    }
-    else print(x$variance, digits = digits)
+    { 
+      for(g in 1:x$G)
+      { 
+        cat("[,,", g, "]\n", sep = "")
+        print(x$variance[,,g], digits = digits) 
+      }
+    } else print(x$variance, digits = digits)
     if(x$noise)
-    { cat("\nHypervolume of noise component:\n")
-      cat(signif(x$noise, digits = digits), "\n") }
-  }
-  if(x$printClassification)
-  { cat("\nClustering table:")
-    print(table(factor(x$classification, 
-                       levels = { l <- seq(x$G)
-                       if(is.numeric(x$noise)) l <- c(l,0) 
-                       l })),
-          digits = digits)
-    # cat("\nClassification:\n")
-    # print(x$classification, digits = digits)
+    { 
+      cat("\nHypervolume of noise component:\n")
+      cat(signif(x$noise, digits = digits), "\n") 
+    }
   }
   #
   invisible(x)
 }
+
+
+#' Model-based mixture density estimation for bounded data
+#' 
+#' @description 
+#' Predict density estimates for univariate and multivariate bounded data
+#' based on Gaussian finite mixture models estimated by
+#' [densityMclustBounded()].
+#' 
+#' @param object An object of class `'densityMclustBounded'` resulting
+#' from a call to [densityMclustBounded()].
+#' @param newdata A numeric vector, matrix, or data frame of observations. If
+#' missing the density is computed for the input data obtained from the call to
+#' [densityMclustBounded()].
+#' @param what A character string specifying what to retrieve: `"dens"`
+#' returns a vector of values for the mixture density; `"cdens"` returns a
+#' matrix of component densities for each mixture component (along the
+#' columns); `"z"` returns a matrix of component posterior probabilities.
+#' @param logarithm A logical value indicating whether or not the logarithm of
+#' the densities/probabilities should be returned.
+#' @param \dots Further arguments passed to or from other methods.
+#' 
+#' @return 
+#' Returns a vector or a matrix of values evaluated at `newdata` depending 
+#' on the argument `what` (see above).
+#' 
+#' @author Luca Scrucca
+#' 
+#' @seealso [densityMclustBounded()], [plot.densityMclustBounded()].
+#' 
+#' @references 
+#' Scrucca L. (2019) A transformation-based approach to Gaussian
+#' mixture density estimation for bounded data. *Biometrical Journal*,
+#' 61:4, 873–888. \doi{doi:10.1002/bimj.201800174}
+#' 
+#' @examples
+#' \donttest{
+#' y <- sample(0:1, size = 200, replace = TRUE, prob = c(0.6, 0.4))
+#' x <- y*rchisq(200, 3) + (1-y)*rchisq(200, 10)
+#' dens <- densityMclustBounded(x, lbound = 0)
+#' summary(dens)
+#' plot(dens, what = "density", data = x, breaks = 11)
+#' 
+#' xgrid <- seq(0, max(x), length = 201)
+#' densx <- predict(dens, newdata = xgrid, what = "dens")
+#' cdensx <- predict(dens, newdata = xgrid, what = "cdens")
+#' cdensx <- sweep(cdensx, MARGIN = 2, FUN = "*", dens$parameters$pro)
+#' plot(xgrid, densx, type = "l", lwd = 2)
+#' matplot(xgrid, cdensx, type = "l", col = 3:4, lty = 2:3, lwd = 2, add = TRUE)
+#' 
+#' z <- predict(dens, newdata = xgrid, what = "z")
+#' matplot(xgrid, z, col = 3:4, lty = 2:3, lwd = 2, ylab = "Posterior probabilities")
+#' }
+#' @exportS3Method
 
 predict.densityMclustBounded <- function(object, newdata, 
                                          what = c("dens", "cdens", "z"),
@@ -285,19 +521,23 @@ predict.densityMclustBounded <- function(object, newdata,
   obj <- object
   obj$data <- newdata[inrange,,drop=FALSE]
   out <- do.call("tdens", c(obj, what = what, logarithm = logarithm))
+  
   if(what == "dens")
-    { dens <- rep(if(logarithm) -Inf else as.double(0), n)
-      dens[inrange] <- out
-      return(dens) 
+  { 
+    dens <- rep(if(logarithm) -Inf else as.double(0), n)
+    dens[inrange] <- out
+    return(dens) 
   } else 
   if(what == "cdens")
-    { cdens <- matrix(if(logarithm) -Inf else as.double(0), n, object$G)
-      cdens[inrange,] <- out
-      return(cdens) 
+  { 
+    cdens <- matrix(if(logarithm) -Inf else as.double(0), n, object$G)
+    cdens[inrange,] <- out
+    return(cdens) 
   } else
-    { z <- matrix(if(logarithm) -Inf else as.double(0), n, object$G)
-      z[inrange,] <- out
-      return(z) 
+  { 
+    z <- matrix(if(logarithm) -Inf else as.double(0), n, object$G)
+    z[inrange,] <- out
+    return(z) 
   }
 }
 
@@ -308,19 +548,20 @@ densityBounded <- function(data, G, modelName,
                            lbound = NULL, ubound = NULL, 
                            epsbound = NULL,
                            prior = NULL,
-                           noise = NULL,
+                           noise = NULL, Vinv = NULL,
                            control = emControl(),
                            optimControl = list(fnscale = -1,
                                                maxit = 10, 
                                                parscale = 0.1,
                                                usegr = TRUE),
-                           nstart = nstart,
+                           nstart = 25,
                            warn = mclust.options("warn"), 
                            verbose = FALSE, 
                            eps = sqrt(.Machine$double.eps),
                            ...)
 {
   x <- as.matrix(data)
+  varnames <- colnames(x)
   n <- nrow(x)
   d <- ncol(x)
   G <- as.integer(G)
@@ -345,9 +586,6 @@ densityBounded <- function(data, G, modelName,
       else if(is.finite(ub))
         epsbound[j] <- quantile(ub-x[,j], probs=0.01)
       else epsbound[j] <- 0
-      # beps <- c(quantile(x[,j]-lbound[j], probs=0.01),
-      #           quantile(ubound[j]-x[,j], probs=0.01))
-      # epsbound[j] <- min(abs(beps)[is.finite(beps)])
     }
   }
   
@@ -362,31 +600,34 @@ densityBounded <- function(data, G, modelName,
   if(length(optimControl$parscale) != d)
      optimControl$parscale <- rep(optimControl$parscale[1], d)
   usegr <- optimControl$usegr; optimControl$usegr <- NULL
+  
   if(is.null(lambda)) lambda <- c(-3,3)
-  lambdaRange <- if(is.matrix(lambda))  lambda 
+  lambdaRange <- if(is.matrix(lambda)) lambda 
                  else  matrix(lambda, nrow = d, ncol = 2, byrow = TRUE)
-  lambdaFixed <- all(apply(lambdaRange, 1, diff) == 0)
+  lambdaFixed <- (apply(lambdaRange, 1, diff) == 0)
+  lambda <- rep(as.double(NA), d)
   # starting value for lambda
-  lambda <- if(lambdaFixed) apply(lambdaRange, 1, mean) else 
+  for(j in seq(d))
+  {
+    lambda[j] <- if(lambdaFixed[j]) 
     { 
-      lambda <- rep(1,d)
-      for(j in seq(d))
-      { 
-        lambdaOpt <- optim(par = lambda[j], 
-                           fn = marginalTransfLoglik,
-                           method = "L-BFGS-B",
-                           lower = lambdaRange[j,1],
-                           upper = lambdaRange[j,2],
-                           control = list(fnscale = -1, parscale = 0.1),
-                           # parameters of marginalTransfLoglik()
-                           data = x[,j],
-                           lbound = lbound[j],
-                           ubound = ubound[j],
-                           epsbound = epsbound[j])
-        lambda[j] <- lambdaOpt$par
-      }
-      lambda
+      mean(lambdaRange[j]) 
+    } else
+    {      
+      lambdaOpt <- optim(par = 1,
+                         fn = marginalTransfLoglik,
+                         method = "L-BFGS-B",
+                         lower = lambdaRange[j,1],
+                         upper = lambdaRange[j,2],
+                         control = list(fnscale = -1, parscale = 0.1),
+                         # parameters of marginalTransfLoglik()
+                         data = x[,j],
+                         lbound = lbound[j],
+                         ubound = ubound[j],
+                         epsbound = epsbound[j])
+      lambdaOpt$par
     }
+  }
   lambdaInit <- lambda
   # initial transformation
   tx <- matrix(as.double(NA), nrow = n, ncol = d)
@@ -397,18 +638,34 @@ densityBounded <- function(data, G, modelName,
                                   ubound = ubound[j],
                                   lambda = lambda[j]) 
   }
+  # noise component
+  if(!is.null(noise))
+  {
+    noise <- as.vector(noise)
+    if(any(match(noise, 1:n, nomatch = 0) == 0))
+        stop("numeric or logical vector for noise must correspond to row indexes of data")
+    stopifnot(!is.null(Vinv))
+  }
 
-  # initialisation using k-means with given G on the transformed variables
-  km <- kmeans(tx, centers = G, nstart = nstart)
-  z  <- unmap(km$cluster)
-  
-  # TODO: noise component?
-  Vinv <- NULL
-  # TODO: insert the possibility of a subset. It is needed?
+  # initialization using k-means with given G on the transformed variables
+  if(is.null(Vinv))
+  {
+    km <- kmeans(tx, centers = G, 
+                 nstart = ifelse(G > 1, nstart, 1))
+    z  <- unmap(km$cluster)
+  }  else
+  {
+    km <- kmeans(tx[-noise,,drop=FALSE], centers = G, 
+                 nstart = ifelse(G > 1, nstart, 1))
+    z  <- matrix(0L, nrow = n, ncol = G+1)
+    z[-noise,1:G] <- unmap(km$cluster)
+    z[noise,G+1]  <- 1
+    colnames(z) <- c(1:G,0)
+  }
 
   # start algorithm
   ME_step <- me(data = tx, modelName = modelName, 
-                z = z, prior = prior, Vinv = Vinv, 
+                z = z, prior = prior, Vinv = Vinv,
                 warn = warn, ...)
   if(is.na(ME_step$loglik))
   { 
@@ -434,6 +691,7 @@ densityBounded <- function(data, G, modelName,
   { 
     cat("\nG =", G, "  Model =", modelName)
     cat("\niter =", iter, "  lambda =", lambda, "  loglik =", loglik) 
+    if(!is.null(Vinv)) cat("  Vinv =", Vinv)
   }
   
   while((loglik - loglik0)/(1+abs(loglik)) > tol & iter < itmax)
@@ -441,7 +699,7 @@ densityBounded <- function(data, G, modelName,
     loglik0 <- loglik
     iter <- iter + 1
     # optimize tloglik for lambda
-    if(!lambdaFixed)
+    if(!all(lambdaFixed))
       { 
         # central difference approx to derivative
         Dtloglik <- function(lambda, ...)
@@ -482,6 +740,9 @@ densityBounded <- function(data, G, modelName,
                                     ubound = ubound[j],
                                     lambda = lambda[j])
     }
+    # update noise component
+    if(!is.null(Vinv)) 
+      Vinv <- hypvol(tx, reciprocal = TRUE)
     # compute ME-step
     ME_step <- me(data = tx, modelName = modelName, 
                   z = ME_step$z, 
@@ -497,8 +758,12 @@ densityBounded <- function(data, G, modelName,
       if(warn) warning("EM convergence problems...")
       break 
     }
-    if(verbose) 
+    #
+    if(verbose)
+    {
       cat("\niter =", iter, "  lambda =", lambda, "  loglik =", loglik)
+      if(!is.null(Vinv)) cat("  Vinv =", Vinv)
+    }
   }
   
   # collect info & estimates  
@@ -512,7 +777,7 @@ densityBounded <- function(data, G, modelName,
                                   lambda = lambda[j])
   }
   mod$tdata <- tx
-  names(lambda) <- names(lambdaInit) <- colnames(data)
+  names(lambda) <- names(lambdaInit) <- varnames
   mod$lambda <- lambda
   mod$lambdaInit <- lambdaInit
   mod$lbound <- lbound 
@@ -520,16 +785,31 @@ densityBounded <- function(data, G, modelName,
   mod$epsbound <- epsbound
   mod$loglik <- loglik
   mod$iter <- iter
-  mod$df <- nMclustParams(modelName, d, G) + if(lambdaFixed) 0 else d
+  cl <- c(1:G, if(!is.null(Vinv)) 0)
+  names(mod$parameters$pro) <- cl
+  if(d > 1)
+  { 
+    dimnames(mod$parameters$mean)[1] <- list(varnames)
+    dimnames(mod$parameters$variance$sigma)[1:2] <- list(varnames, varnames)
+  } 
+  # else
+  # {
+  #   browser()
+  #   names(mod$parameters$mean) <- cl
+  #   names(mod$parameters$variance$sigmasq) <- cl
+  # }
+  mod$Vinv <- if(is.null(Vinv)) NA else Vinv
+  mod$df <- nMclustParams(modelName, d, G) + 
+            sum(!lambdaFixed) + 1*(!is.null(Vinv))
   mod$bic <- 2*loglik - mod$df*log(n)
-  mod$classification <- map(mod$z)
-  mod$uncertainty <- 1 - rowMax(mod$z)
+  mod$classification <- cl[map(mod$z)]
+  mod$uncertainty <- c(1 - rowMax(mod$z))
   mod$density <- do.call("tdens", mod)
   orderedNames <- c("data", "n", "d", "modelName", "G",
                     "lbound", "ubound", "epsbound", "lambdaInit",
                     "tdata", "loglik", "iter", "df", "bic", 
-                    "parameters", "lambda", "z", 
-                    "classification", "uncertainty",
+                    "lambda", "parameters", "Vinv", 
+                    "z", "classification", "uncertainty",
                     "density")
   return(mod[orderedNames])
 }
@@ -539,17 +819,84 @@ tloglik <- function(data, modelName, G,
                     lambda = 1, lbound = -Inf, ubound = +Inf, 
                     epsbound, parameters, ...)
 {
-  sum(tdens(data = data, 
-            modelName = modelName, G = G, 
-            lambda = lambda, 
-            lbound = lbound, ubound = ubound,
-            epsbound = epsbound,
-            parameters = parameters, 
-            logarithm = TRUE, ...))
+  l <- sum(tdens(data = data, 
+                 modelName = modelName, G = G, 
+                 lambda = lambda, 
+                 lbound = lbound, ubound = ubound,
+                 epsbound = epsbound,
+                 parameters = parameters, 
+                 logarithm = TRUE, 
+                 what = "dens", ...))
+  return(l)
 }
 
 # density on the transformed data
 tdens <- function(data, modelName, G,
+                  lambda = 1, lbound = -Inf, ubound = +Inf,
+                  epsbound, parameters, logarithm = FALSE, 
+                  what = c("dens", "cdens", "z"),
+                  warn = mclust.options("warn"), ...)
+{
+  d <- parameters$variance$d
+  x <- as.matrix(data)
+  what <- match.arg(what)
+  pro <- parameters$pro; pro <- pro/sum(pro)
+  noise <- (!is.null(parameters$Vinv))
+  cl <- c(seq(G), if(noise) 0)
+  
+  # transform data
+  tx <- J <- matrix(as.double(NA), nrow = nrow(x), ncol = d)
+  for(j in seq(d))
+  { 
+    tx[,j] <- rangepowerTransform(x[,j], 
+                                  lbound = lbound[j], 
+                                  ubound = ubound[j],
+                                  lambda = lambda[j]) 
+    J[,j]  <- rangepowerTransformDeriv(x[,j], 
+                                       lbound = lbound[j], 
+                                       ubound = ubound[j],
+                                       lambda = lambda[j], 
+                                       epsbound = epsbound[j])
+  }
+  # log-jacobian of transformation
+  logJ <- rowSum(log(J))
+
+  # compute mixture components density 
+  logcden <- cdens(modelName = modelName, 
+                   data = if(d > 1) tx else as.vector(tx),
+                   logarithm = TRUE, 
+                   parameters = parameters, 
+                   warn = warn)
+	if(attr(logcden, "returnCode") != 0) 
+	  return(NA) 
+  logcden <- sweep(logcden, 1, FUN = "+", STATS = logJ)
+  logcden <- if(noise) cbind(logcden, log(parameters$Vinv))
+             else      cbind(logcden) # drop redundant attributes
+  colnames(logcden) <- cl
+           
+  if(what == "cdens")
+  { 
+    # return mixture components density
+    cden <- if(logarithm) logcden else exp(logcden)
+    return(cden)
+  }
+  
+  if(what == "z")
+  { 
+    # return probability of belong to mixture components
+    z <- mclust::softmax(logcden, log(pro))
+    colnames(z) <- cl
+    if(logarithm) z <- log(z)
+    return(z) 
+  }
+  
+  logden <- mclust::logsumexp(logcden, log(pro))
+  den <- if(logarithm) logden else exp(logden)
+  return(den)
+}
+
+# new version: to be removed ??
+tdens0 <- function(data, modelName, G,
                   lambda = 1, lbound = -Inf, ubound = +Inf,
                   epsbound, parameters, logarithm = FALSE, 
                   what = c("dens", "cdens", "z"),
@@ -576,49 +923,50 @@ tdens <- function(data, modelName, G,
   logJ <- rowSum(log(J))
 
   # compute mixture components density 
-  cden <- cdens(modelName = modelName, 
-                data = if(d > 1) tx else as.vector(tx),
-                logarithm = TRUE, 
-                parameters = parameters, 
-                warn = warn)
-  cden <- sweep(cden, 1, FUN = "+", STATS = logJ)
+  logcden <- cdens(modelName = modelName, 
+                   data = if(d > 1) tx else as.vector(tx),
+                   logarithm = TRUE, 
+                   parameters = parameters, 
+                   warn = warn)
+  if(attr(logcden, "returnCode") != 0) 
+    return(NA) 
+  logcden <- sweep(logcden, 1, FUN = "+", STATS = logJ)
   
   if(what == "cdens")
   { 
     # return mixture components density
-    if(!logarithm) cden <- exp(cden)
-    return(cden) 
+    cden <- if(logarithm) logcden else exp(logcden)
+    return(cden)
   }
   
   pro <- parameters$pro
   if(is.null(pro))
     stop("mixing proportions must be supplied")
-  noise <- (!is.null(parameters$Vinv))
-  if(G > 1)
-  { 
-    if(noise) 
-      { pro <- pro[-length(pro)] }
-    if(any(proz <- pro == 0)) 
-      { pro <- pro[!proz]
-        cden <- cden[, !proz, drop = FALSE] 
-      }
-  }
-  
+
   if(what == "z")
   { 
     # return probability of belong to mixture components
-    z <- mclust::softmax(cden, log(pro))
+    z <- mclust::softmax(logcden, log(pro))
     if(logarithm) z <- log(z)
     return(z) 
   }
   
-  # cden <- sweep(cden, 2, FUN = "+", STATS = log(pro))
-  # den <- logsumexp(cden)
-  den <- mclust::logsumexp(cden, log(pro))
-  
+  noise <- (!is.null(parameters$Vinv))
   if(noise) 
-    den <- den + parameters$pro[G+1]*parameters$Vinv
-  if(!logarithm) den <- exp(den)
+  {
+    proNoise <- pro[length(pro)]
+    pro <- pro[-length(pro)]
+  }
+  if(any(proz <- pro == 0)) 
+  { 
+    pro <- pro[!proz]
+    logcden <- logcden[, !proz, drop = FALSE]
+  }
+  
+  logden <- mclust::logsumexp(logcden, log(pro))
+  if(noise) 
+    logden <- log(exp(logden) + proNoise*parameters$Vinv)
+  den <- if(logarithm) logden else exp(logden)
   return(den)
 }
 
@@ -643,6 +991,77 @@ marginalTransfLoglik <- function(data, lambda, lbound, ubound, epsbound)
 
 ## Plot methods ----
 
+#' Plotting method for model-based mixture density estimation for bounded data
+#' 
+#' @description
+#' Plots for `mclustDensityBounded` objects.
+#' 
+#' @param x An object of class `'densityMclustBounded'` obtained from a
+#' call to [densityMclustBounded()].
+#' @param what The type of graph requested: 
+#' * `"BIC"` for a plot of BIC values for the estimated models versus the number 
+#' of components.
+#' * `"density"` for a plot of estimated density; if `data` is also provided the
+#' density is plotted over the given data points.
+#' * `"diagnostic"` for diagnostic plots (only available for the one-dimensional 
+#' case).
+#' @param data Optional data points.
+#' @param \dots Further available arguments:
+#' 
+#' * For 1-dimensional data:\cr
+#'   `hist.col = "lightgrey", hist.border = "white", breaks = "Sturges"`
+#'   
+#' * For 2-dimensional data:\cr
+#'   `type = c("contour", "hdr", "image", "persp"),`
+#'   `transformation = c("none", "log", "sqrt")},`
+#'   `grid = 100, nlevels = 11, levels = NULL,`
+#'   `prob = c(0.25, 0.5, 0.75),` 
+#'   `col = grey(0.6), color.palette = blue2grey.colors,`
+#'   `points.col = 1, points.cex = 0.8, points.pch = 1`
+#' 
+#' * For \eqn{d > 2}-dimensional data:\cr
+#'   `type = c("contour", "hdr"), gap = 0.2, grid = 100,` 
+#'   `nlevels = 11, levels = NULL, prob = c(0.25, 0.5, 0.75),`
+#'   `col = grey(0.6), color.palette = blue2grey.colors,`
+#'   `code{points.col = 1, points.cex = 0.8, points.pch = 1`
+#'
+#' @return No return value, called for side effects.
+#' 
+#' @author Luca Scrucca
+#' 
+#' @seealso [densityMclustBounded()], [predict.densityMclustBounded()].
+#' 
+#' @references 
+#' Scrucca L. (2019) A transformation-based approach to Gaussian
+#' mixture density estimation for bounded data. *Biometrical Journal*,
+#' 61:4, 873–888. \doi{doi:10.1002/bimj.201800174}
+#' 
+#' @examples
+#' \donttest{
+#' # univariate case with lower bound
+#' x <- rchisq(200, 3)
+#' dens <- densityMclustBounded(x, lbound = 0)
+#' plot(dens, what = "BIC")
+#' plot(dens, what = "density", data = x, breaks = 15)
+#' 
+#' # univariate case with lower & upper bound
+#' x <- rbeta(200, 5, 1.5)
+#' dens <- densityMclustBounded(x, lbound = 0, ubound = 1)
+#' plot(dens, what = "BIC")
+#' plot(dens, what = "density", data = x, breaks = 9)
+#' 
+#' # bivariate case with lower bounds
+#' x1 <- rchisq(200, 3)
+#' x2 <- 0.5*x1 + sqrt(1-0.5^2)*rchisq(200, 5)
+#' x <- cbind(x1, x2)
+#' dens <- densityMclustBounded(x, lbound = c(0,0))
+#' plot(dens, what = "density")
+#' plot(dens, what = "density", data = x)
+#' plot(dens, what = "density", type = "hdr")
+#' plot(dens, what = "density", type = "persp")
+#' }
+#' @exportS3Method
+
 plot.densityMclustBounded <- function(x, what = c("BIC", "density", "diagnostic"),
                                       data = NULL, ...) 
 {
@@ -652,42 +1071,40 @@ plot.densityMclustBounded <- function(x, what = c("BIC", "density", "diagnostic"
   if(object$d > 1) 
     what <- setdiff(what, "diagnostic")
 
-  plot.densityMclustBounded.density <- function(...)
+  plot.density <- function(...)
   { 
     if(object$d == 1)      plotDensityMclustBounded1(object, data = data, ...)
     else if(object$d == 2) plotDensityMclustBounded2(object, data = data, ...)
     else                   plotDensityMclustBoundedd(object, data = data, ...)
   }
   
-  plot.densityMclustBounded.bic <- function(...)
+  plot.bic <- function(...)
   { 
     plot.mclustBIC(object$BIC, ...)
   }
   
-  plot.densityMclustBounded.diagnostic <- function(...)
+  plot.diagnostic <- function(...)
   { 
     densityMclustBounded.diagnostic(object, ...) 
   }
   
   if(interactive() & length(what) > 1)
-    { title <- "Model-based density estimation plots:"
-      # present menu waiting user choice
+  { 
+    title <- "Model-based density estimation plots:"
+    # present menu waiting user choice
+    choice <- menu(what, graphics = FALSE, title = title)
+    while(choice != 0)
+    { if(what[choice] == "BIC")        plot.bic(...)
+      if(what[choice] == "density")    plot.density (...)
+      if(what[choice] == "diagnostic") plot.diagnostic(...)
+      # re-present menu waiting user choice
       choice <- menu(what, graphics = FALSE, title = title)
-      while(choice != 0)
-           { if(what[choice] == "BIC")         
-               plot.densityMclustBounded.bic(...)
-             if(what[choice] == "density")
-               plot.densityMclustBounded.density (...)
-             if(what[choice] == "diagnostic")
-               plot.densityMclustBounded.diagnostic(...)
-             # re-present menu waiting user choice
-             choice <- menu(what, graphics = FALSE, title = title)
-           }
-  } 
-  else 
-    { if(any(what == "BIC"))        plot.densityMclustBounded.bic(...)
-      if(any(what == "density"))    plot.densityMclustBounded.density (...)
-      if(any(what == "diagnostic"))  plot.densityMclustBounded.diagnostic(...)
+    }
+  } else 
+  { 
+    if(any(what == "BIC"))        plot.bic(...)
+    if(any(what == "density"))    plot.density (...)
+    if(any(what == "diagnostic")) plot.diagnostic(...)
   }
  
   invisible()
@@ -1006,9 +1423,79 @@ plotDensityMclustBoundedd <-
   invisible() 
 }
 
-# Diagnostics ----
+# Diagnostic plots ----
 
-# cdf (univariate case)
+#' Cumulative distribution and quantiles of univariate model-based mixture
+#' density estimation for bounded data
+#' 
+#' @description
+#' Compute the cumulative density function (cdf) or quantiles of a
+#' one-dimensional density for bounded data estimated via the 
+#' transformation-based approach for Gaussian mixtures in 
+#' [densityMclustBounded()].
+#'
+#' @param object A `'densityMclustBounded'` model object.
+#' @param data A numeric vector of evaluation points.
+#' @param ngrid The number of points in a regular grid to be used as evaluation
+#' points if no `data` are provided.
+#' @param p A numeric vector of probabilities corresponding to quantiles.
+#' @param \dots further arguments passed to or from other methods.
+#' 
+#' @details
+#' The cdf is evaluated at points given by the optional argument `data`.
+#' If not provided, a regular grid of length `ngrid` for the evaluation
+#' points is used.
+#' 
+#' The quantiles are computed using bisection linear search algorithm.
+#' 
+#' @return 
+#' `cdfDensityBounded()` returns a list of `x` and `y` values providing, 
+#' respectively, the evaluation points and the estimated cdf.
+#' 
+#' `quantileDensityBounded()` returns a vector of quantiles.
+#' 
+#' @aliases cdfDensityBounded quantileDensityBounded
+#' 
+#' @author Luca Scrucca
+#' 
+#' @seealso [densityMclustBounded()], [plot.densityMclustBounded()].
+#' 
+#' @examples
+#' \donttest{
+#' # univariate case with lower bound
+#' x <- rchisq(200, 3)
+#' dens <- densityMclustBounded(x, lbound = 0)
+#' 
+#' xgrid <- seq(-2, max(x), length=1000)
+#' cdf <- cdfDensityBounded(dens, xgrid)
+#' str(cdf)
+#' plot(xgrid, pchisq(xgrid, df = 3), type = "l", xlab = "x", ylab = "CDF")
+#' lines(cdf, col = 4, lwd = 2)
+#' 
+#' q <- quantileDensityBounded(dens, p = c(0.01, 0.1, 0.5, 0.9, 0.99))
+#' cbind(quantile = q, cdf = cdfDensityBounded(dens, q)$y)
+#' plot(cdf, type = "l", col = 4, xlab = "x", ylab = "CDF")
+#' points(q, cdfDensityBounded(dens, q)$y, pch = 19, col = 4)
+#' 
+#' # univariate case with lower & upper bounds
+#' x <- rbeta(200, 5, 1.5)
+#' dens <- densityMclustBounded(x, lbound = 0, ubound = 1)
+#' 
+#' xgrid <- seq(-0.1, 1.1, length=1000)
+#' cdf <- cdfDensityBounded(dens, xgrid)
+#' str(cdf)
+#' plot(xgrid, pbeta(xgrid, 5, 1.5), type = "l", xlab = "x", ylab = "CDF")
+#' lines(cdf, col = 4, lwd = 2)
+#' 
+#' q <- quantileDensityBounded(dens, p = c(0.01, 0.1, 0.5, 0.9, 0.99))
+#' cbind(quantile = q, cdf = cdfDensityBounded(dens, q)$y)
+#' plot(cdf, type = "l", col = 4, xlab = "x", ylab = "CDF")
+#' points(q, cdfDensityBounded(dens, q)$y, pch = 19, col = 4)
+#' }
+#' 
+#' @rdname densityMclustBounded.diagnostic
+#' @export 
+
 cdfDensityBounded <- function(object, data, ngrid = 100, ...)
 {
   if(!any(class(object) == "densityMclustBounded"))
@@ -1048,6 +1535,9 @@ cdfDensityBounded <- function(object, data, ngrid = 100, ...)
   return(out)
 }
 
+#' @rdname densityMclustBounded.diagnostic
+#' @export
+
 quantileDensityBounded <- function(object, p, ...)
 {
   stopifnot(inherits(object, "densityMclustBounded"))
@@ -1076,6 +1566,68 @@ quantileDensityBounded <- function(object, p, ...)
   return(q)  
 }
 
+
+#' Diagnostic plots for `mclustDensityBounded` estimation
+#' 
+#' @description
+#' Diagnostic plots for density estimation of bounded data via
+#' transformation-based approach of Gaussian mixtures. Only available for the
+#' one-dimensional case.
+#' 
+#' The two diagnostic plots for density estimation in the one-dimensional case
+#' are discussed in Loader (1999, pp- 87-90).
+#' 
+#' @param object An object of class `'mclustDensityBounded'` obtained from
+#' a call to [densityMclustBounded()] function.
+#' @param type The type of graph requested: 
+#' * `"cdf"` A plot of the estimated CDF versus the empirical distribution 
+#' function.
+#' * `"qq"` A Q-Q plot of sample quantiles versus the quantiles obtained from 
+#' the inverse of the estimated cdf.
+#' @param col A pair of values for the color to be used for plotting,
+#' respectively, the estimated CDF and the empirical cdf.
+#' @param lwd A pair of values for the line width to be used for plotting,
+#' respectively, the estimated CDF and the empirical cdf.
+#' @param lty A pair of values for the line type to be used for plotting,
+#' respectively, the estimated CDF and the empirical cdf.
+#' @param legend A logical indicating if a legend must be added to the plot of
+#' fitted CDF vs the empirical CDF.
+#' @param grid A logical indicating if a [grid()] should be added to
+#' the plot.
+#' @param \dots Additional arguments.
+#' 
+#' @return 
+#' No return value, called for side effects.
+#' 
+#' @author Luca Scrucca
+#' 
+#' @seealso 
+#' [densityMclustBounded()], [plot.densityMclustBounded()].
+
+#' @references 
+#' Loader C. (1999), Local Regression and Likelihood. New York, Springer.
+
+#' @examples
+#' \donttest{
+#' # univariate case with lower bound
+#' x <- rchisq(200, 3)
+#' dens <- densityMclustBounded(x, lbound = 0)
+#' plot(dens, x, what = "diagnostic")
+#' # or
+#' densityMclustBounded.diagnostic(dens, type = "cdf")
+#' densityMclustBounded.diagnostic(dens, type = "qq")
+#' 
+#' # univariate case with lower & upper bounds
+#' x <- rbeta(200, 5, 1.5)
+#' dens <- densityMclustBounded(x, lbound = 0, ubound = 1)
+#' plot(dens, x, what = "diagnostic")
+#' # or
+#' densityMclustBounded.diagnostic(dens, type = "cdf")
+#' densityMclustBounded.diagnostic(dens, type = "qq")
+#' }
+#' 
+#' @export
+
 densityMclustBounded.diagnostic <- function(object, 
                                             type = c("cdf", "qq"), 
                                             col = c("black", "black"), 
@@ -1083,19 +1635,6 @@ densityMclustBounded.diagnostic <- function(object,
                                             legend = TRUE, grid = TRUE, 
                                             ...)
 {
-# Diagnostic plots for density estimation 
-# (only available for the one-dimensional case)
-# 
-# Arguments:
-# object = a 'densityMclustBounded' object
-# type = type of diagnostic plot:
-#   "cdf" = fitted CDF  vs empirical CDF
-#   "qq"  = fitted CDF evaluated over the observed data points vs 
-#           the quantile from a uniform distribution
-#
-# Reference: 
-# Loader C. (1999), Local Regression and Likelihood. New York, Springer, 
-#   pp. 87-90)
 
   stopifnot(inherits(object, "densityMclustBounded"))
   if(object$d > 1)
@@ -1172,7 +1711,102 @@ densityMclustBounded.diagnostic <- function(object,
 
 ## Range-Power Transformation functions ----
 
-# Range-Power transformation 
+#' Range–power transformation
+#' 
+#' @description
+#' Functions to compute univariate range–power transformation and its
+#' back-transform.
+#' 
+#' @details
+#' 
+#' The *range-power transformation* can be applied to variables with
+#' bounded support.
+#' 
+#' **Lower bound case**
+#' 
+#' Suppose \eqn{x} is a univariate random variable with lower bounded support
+#' \eqn{\mathcal{S}_{\mathcal{X}} \equiv (l,\infty)}, where \eqn{l > -\infty}.
+#' Consider a preliminary *range transformation* defined as \eqn{x \mapsto
+#' (x - l)}, which maps \eqn{\mathcal{S}_{\mathcal{X}} \to \mathbb{R}^{+}}.\cr 
+#' The *range-power transformation* is a continuous monotonic transformation
+#' defined as 
+#' \deqn{ t(x; \lambda) = 
+#' \begin{cases} \dfrac{(x-l)^{\lambda} - 1}{\lambda} & 
+#' \quad\text{if}\; \lambda \ne 0 \\[1ex] \log(x-l) &
+#' \quad\text{if}\; \lambda = 0 
+#' \end{cases} } 
+#' with back-transformation function
+#' \deqn{ t^{-1}(y; \lambda) = 
+#' \begin{cases} (\lambda y + 1)^{1/\lambda} + l &
+#' \quad\text{if}\; \lambda \ne 0 \\[1ex] \exp(y)+l & 
+#' \quad\text{if}\; \lambda = 0 
+#' \end{cases} }
+#' 
+#' **Lower and upper bound case**
+#' 
+#' Suppose \eqn{x} is a univariate random variable with bounded support
+#' \eqn{\mathcal{S}_{\mathcal{X}} \equiv (l,u)}, where \eqn{-\infty < l < u <
+#' +\infty}. Consider a preliminary *range transformation* defined as
+#' \eqn{x \mapsto (x - l)/(u - x)}, which maps \eqn{\mathcal{S}_{\mathcal{X}}
+#' \to \mathbb{R}^{+}}.\cr
+#' In this case, the *range-power transformation* is a continuous monotonic
+#' transformation defined as 
+#' \deqn{ t(x; \lambda) =
+#' \begin{cases} 
+#' \dfrac{ \left( \dfrac{x-l}{u-x} \right)^{\lambda} - 1}{\lambda} & 
+#' \quad\text{if}\; \lambda \ne 0 \\[2ex] 
+#' \log \left( \dfrac{x-l}{u-x} \right) & 
+#' \quad\text{if}\; \lambda = 0, 
+#' \end{cases} } with back-transformation function 
+#' \deqn{ t^{-1}(y; \lambda) = 
+#' \begin{cases}
+#' \dfrac{l + u (\lambda y + 1)^{1/\lambda}}{1+(\lambda y + 1)^{1/\lambda}} &
+#' \quad\text{if}\; \lambda \ne 0 \\[1ex] \dfrac{l + u \exp(y)}{1+\exp(y)} &
+#' \quad\text{if}\; \lambda = 0 
+#' \end{cases} }
+#' 
+#' @aliases rangepowerTransform rangepowerBackTransform
+#' 
+#' @param x A numeric vector of data values.
+#' @param y A numeric vector of transformed data values.
+#' @param lbound A numerical value of variable lower bound.
+#' @param ubound A numerical value of variable upper bound.
+#' @param lambda A numerical value for the power transformation.
+#' 
+#' @return Returns a vector of transformed or back-transformed values.
+#' 
+#' @author Luca Scrucca
+#' 
+#' @seealso \code{\link{densityMclustBounded}}.
+#' 
+#' @references 
+#' Scrucca L. (2019) A transformation-based approach to Gaussian
+#' mixture density estimation for bounded data. \emph{Biometrical Journal},
+#' 61:4, 873–888. \doi{doi:10.1002/bimj.201800174}
+#' 
+#' @examples
+#' 
+#' # Lower bound case
+#' x = rchisq(1000, 5)
+#' y = rangepowerTransform(x, lbound = 0, lambda = 1/3)
+#' par(mfrow=c(2,2))
+#' hist(x, main = NULL, breaks = 21); rug(x)
+#' hist(y, xlab = "y = t(x)", main = NULL, breaks = 21); rug(y)
+#' xx = rangepowerBackTransform(y, lbound = 0, lambda = 1/3)
+#' hist(xx, xlab = "t^-1(y) = x", main = NULL, breaks = 21); rug(xx)
+#' plot(x, xx, ylab = "t^-1(y)"); abline(0,1)
+#' 
+#' # Lower and upper bound case
+#' x = rbeta(1000, 2, 1)
+#' y = rangepowerTransform(x, lbound = 0, ubound = 1, lambda = 0)
+#' par(mfrow=c(2,2))
+#' hist(x, main = NULL, breaks = 21); rug(x)
+#' hist(y, xlab = "y = t(x)", main = NULL, breaks = 21); rug(y)
+#' xx = rangepowerBackTransform(y, lbound = 0, ubound = 1, lambda = 0)
+#' hist(xx, xlab = "t^-1(y) = x", main = NULL, breaks = 21); rug(xx)
+#' plot(x, xx, ylab = "t^-1(y)"); abline(0,1)
+#' 
+#' @export
 rangepowerTransform <- function(x, lbound = -Inf, ubound = +Inf, lambda = 1)
 { 
   x <- as.vector(x)
@@ -1181,7 +1815,8 @@ rangepowerTransform <- function(x, lbound = -Inf, ubound = +Inf, lambda = 1)
   return(tx)
 }
 
-# Range-Power back transformation 
+#' @rdname rangepowerTransform
+#' @export
 rangepowerBackTransform <- function(y, lbound = -Inf, ubound = +Inf, lambda = 1)
 { 
   y <- as.vector(y)
@@ -1266,13 +1901,18 @@ rangeTransform_R <- function(x, lbound = -Inf, ubound = +Inf)
 powerTransform_R <- function(x, lambda = 1, tol = 1e-3)
 {
   x <- as.vector(x)
-  if(any(x[!is.na(x)] <= 0))
-    { warning("data values must be strictly positive.") 
-      return(NA) }
-  z <- if(abs(lambda) <= tol) 
-         { log(x) } 
-       else 
-         { ((x^lambda) - 1)/lambda }
+  n <- length(x)
+  z <- rep(as.double(NA), n)
+  
+  if(any(x[!is.na(x)] <= 0) & lambda <= 0)
+  { 
+    warning("data values must be strictly positive when lambda <= 0!") 
+    return(NA) 
+  }
+  
+  ok <- if(lambda > 0) seq_len(n) else which(x > 0)
+  z[ok] <- if(abs(lambda) <= tol) log(x[ok]) else ((x[ok]^lambda) - 1)/lambda
   return(z)
 }
+
 

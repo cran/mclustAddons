@@ -1,3 +1,96 @@
+#' Marginal parameters from fitted GMMs via mclust
+#' 
+#' @description
+#' Function to compute the marginal parameters from a fitted Gaussian mixture models.
+#' 
+#' @param object An object of class `Mclust` or `densityMclust`.
+#' @param \dots Further arguments passed to or from other methods.
+#' @param pro A vector of mixing proportions for each mixture component.
+#' @param mu A matrix of mean vectors for each mixture component. For 
+#' a \eqn{d}-variate dataset on \eqn{G} components, the matrix has dimension 
+#' \eqn{(d \times G)}.
+#' @param sigma An array of covariance matrices for each mixture component. 
+#' For a \eqn{d}-variate dataset on \eqn{G} components, the array has dimension 
+#' \eqn{(d \times d \times G)}.
+#' 
+#' @details
+#' Given a \eqn{G}-component GMM with estimated mixture weight \eqn{\pi_k},
+#' mean vector \eqn{\mu_{k}}, and covariance matrix \eqn{\Sigma_{k}}, for
+#' mixture component \eqn{k = 1, \dots, G}, then the marginal distribution has:
+#' 
+#' * mean vector 
+#' \deqn{\mu = \sum_{k=1}^G \pi_k \mu_k}
+#' 
+#' * covariance matrix
+#' \deqn{\Sigma = \sum_{k=1}^G \pi_k \Sigma_k + \pi_k (\mu_k - \mu)'(\mu_k -
+#' \mu)}
+#' 
+#' @return 
+#' Returns a list of two components for the mean and covariance of the
+#' marginal distribution.
+#' 
+#' @author Luca Scrucca
+#' 
+#' @seealso [mclust::Mclust()], [mclust::densityMclust()].
+#' 
+#' @references Frühwirth-Schnatter S. (2006) \emph{Finite Mixture and Markov
+#' Switching Models}, Springer, Sec. 6.1.1
+#' 
+#' @examples
+#' x = iris[,1:4]
+#' mod = Mclust(x, G = 3)
+#' mod$parameters$pro
+#' mod$parameters$mean
+#' mod$parameters$variance$sigma
+#' mclustMarginalParams(mod)
+#' 
+#' @export
+
+mclustMarginalParams <- function(object, ...)
+{
+# Compute marginal parameters from fitted Gaussian mixture model.
+# Source: Frühwirth-Schnatter (2006) Finite Mixture and Markov Switching 
+#         Models, Sec. 6.1.1
+
+  stopifnot(inherits(object, c("Mclust", "densityMclust")))
+  d     <- object$d
+  G     <- object$G 
+  pro   <- object$parameters$pro
+  
+  if(d == 1) 
+  {
+    mean  <- array(object$parameters$mean, dim = c(d,G))
+    sigma <- array(object$parameters$variance$sigmasq, dim = c(d,d,G))
+  } else
+  {
+   mean  <- object$parameters$mean
+   sigma <- object$parameters$variance$sigma
+  }
+  
+  gmm2margParams(pro, mean, sigma)
+}
+
+#' @rdname mclustMarginalParams
+#' @export
+gmm2margParams <- function(pro, mu, sigma, ...)
+{
+# Compute  marginal parameters from Gaussian mixture parameters
+# Source: Frühwirth-Schnatter (2006) Finite Mixture and Markov 
+#         Switching Models, Sec. 6.1.1
+  pro   <- as.vector(pro)
+  G     <- length(pro)  
+  d     <- length(mu)/G
+  mu    <- array(mu, dim = c(d, G))
+  sigma <- array(sigma, dim = c(d,d,G))
+  #
+  mean  <- matrix(apply(mu, 1, function(m) sum(pro*m)), 1, d)
+  var   <- matrix(as.double(0), d, d)
+  for(g in seq(G))
+    var <- var + pro[g]*sigma[,,g] + pro[g]*crossprod(mu[,g] - mean)
+  out <- list(mean = mean, variance = var)
+  return(out)
+}
+
 
 spectral.colors <- function (n) 
 {

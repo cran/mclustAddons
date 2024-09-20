@@ -1,3 +1,14 @@
+# mclustAddons 0.9 (2024-09) NOT ON CRAN
+
+-  Added `GMMlogreturn()` to model log-returns financial data via GMMs.
+-  Added `VaR()` and `ES()` to compute risk measures from GMMs.
+- `densityMclustBounded()` allows to have lambda values fixed for a 
+  subset of variables while to estimate lambda parameters for the 
+  remaining variables.
+- `densityMclustBounded()` added noise component.
+- converted all documentation to use `roxygen2` package.
+- clean-up package dependencies.
+
 # mclustAddons 0.8 (2024-02) 
 
 - Starting with this version mclust >= 6.1 is needed because of using

@@ -30,7 +30,7 @@ NumericVector rangeTransform(NumericVector& x,
   return z;
 }
 
-/***
+/*
 set.seed(1)
 x = rchisq(5,3)
 mclustAddons:::rangeTransform_R(x)
@@ -60,10 +60,55 @@ NumericVector powerTransform(NumericVector& x,
                              double lambda = 1,
                              double eps = 1e-3)
 {
+  // NumericVector z = clone(x);
+  NumericVector z(x.size(), NA_REAL);
+  int           n = x.size();
+  
+  if(lambda <= 0) 
+  {
+    bool has_non_positive = false;
+    for(int i = 0; i < n; ++i) 
+    {
+      if(!R_IsNA(x[i]) && x[i] <= 0) 
+      {
+        has_non_positive = true;
+        break;
+      }
+    }
+    if(has_non_positive) 
+      { stop("data values must be strictly positive when lambda <= 0!"); }
+  }
+    
+  // if(is_true(any(z <= 0)) & (lambda <= 0))
+  //   { stop("data values must be strictly positive when lambda <= 0!"); }
+  
+  for (int i = 0; i < n; ++i) 
+  {
+    if(R_IsNA(x[i])) 
+      { continue; }
+    
+    if(lambda > 0 || x[i] > 0) 
+    {
+      if(std::abs(lambda) <= eps) 
+        { z[i] = std::log(x[i]); } 
+      else 
+        { z[i] = (std::pow(x[i], lambda) - 1) / lambda; }
+    }
+  }
+
+  return(z);
+}
+
+/*
+# old version
+NumericVector powerTransform(NumericVector& x, 
+                             double lambda = 1,
+                             double eps = 1e-3)
+{
   NumericVector z = clone(x);
   
   if(is_true(any(z < 0)))
-    { stop("data values must be strictly positive."); }
+    { stop("data values must be strictly positive!"); }
   
   if(std::abs(lambda) <= eps)
     { z = log(x); } 
@@ -72,8 +117,7 @@ NumericVector powerTransform(NumericVector& x,
 
   return(z);
 }
-
-/***
+ 
 x = rchisq(10, 3)
 mclustAddons:::powerTransform_R(x, lambda = 1/3)
 powerTransform(x, lambda = 1/3)
@@ -117,7 +161,7 @@ NumericVector rangepowerTransformDeriv_lb(NumericVector& x,
   return(dx);
 }
 
-/***
+/*
 set.seed(1)
 x = rchisq(200, 3)
 dx_R = rangepowerTransformDeriv_R(x, lambda = 0.3, lbound = 0, eps = 1)
@@ -188,7 +232,7 @@ NumericVector rangepowerTransformDeriv_lub(NumericVector& x,
   return(dx);
 }
 
-/***
+/*
 set.seed(1)
 x = c(0.001, rbeta(5, 1/2, 1/2), 0.999)
 rangepowerTransformDeriv_R(x, lambda = 1, lbound = 0, ubound = 1)
@@ -253,7 +297,7 @@ arma::rowvec colSum(arma::mat& X)
   return arma::sum(X, 0);
 }
 
-/***
+/*
 library(microbenchmark)
 X = matrix(rchisq(1e5,10),1e4,10)
 

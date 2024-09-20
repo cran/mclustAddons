@@ -73,7 +73,7 @@ plot(dens, what = "density",
 rug(x)
 
 ## -----------------------------------------------------------------------------
-data(Baudry_etal_2010_JCGS_examples)
+data(Baudry_etal_2010_JCGS_examples, package = "mclust")
 GMM <- Mclust(ex4.1)
 plot(GMM, what = "classification")
 MEM <- MclustMEM(GMM)

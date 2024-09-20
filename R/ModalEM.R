@@ -1,9 +1,58 @@
-#
-# Modal EM algorithm for Gaussian Mixtures
-#
-# Author:  Luca Scrucca
-# Version: 15 June 2020
-#
+#' Modal EM algorithm for Gaussian Mixtures
+#' 
+#' @description
+#' A function implementing a fast and efficient Modal EM algorithm for Gaussian
+#' mixtures.
+#' 
+#' 
+#' @param data A numeric vector, matrix, or data frame of observations.
+#' Categorical variables are not allowed. If a matrix or data frame, rows
+#' correspond to observations (\eqn{n}) and columns correspond to variables
+#' (\eqn{d}).
+#' @param pro A \eqn{(G \times 1)}{(G x 1)} vector of mixing probabilities for
+#' a Gaussian mixture of \eqn{G} components.
+#' @param mu A \eqn{(d \times G)}{(d x G)} matrix of component means for a
+#' \eqn{d}-variate Gaussian mixture of \eqn{G} components.
+#' @param sigma A \eqn{(d \times d \times G)}{(d x d x G)} array of component
+#' covariance matrices for a \eqn{d}-variate Gaussian mixture of \eqn{G}
+#' components.
+#' @param control A list of control parameters:
+#' * `eps, maxiter` Numerical values setting the tolerance and the maximum 
+#' number of iterations of the MEM algorithm;
+#' * `stepsize` A function controlling the step size of the MEM algorithm;
+#' * `denoise` A logical, if `TRUE` a denoising procedure is used when 
+#' \eqn{d > 1} to discard all modes whose density is negligible;
+#' * `alpha` A numerical value used when `denoise = TRUE` for computing the 
+#' hypervolume of central \eqn{(1-\alpha)100}{(1-alpha)100} region of a 
+#' multivariate Gaussian;
+#' * `keep.path` A logical controlling whether or not the full paths
+#' to modes must be returned.
+#' @param \dots Further arguments passed to or from other methods.
+#' 
+#' @return 
+#' Returns a list containing the following elements: 
+#' * `n` The number of input data points.
+#' * `d` The number of variables/features.
+#' * `parameters` The Gaussian mixture parameters.
+#' * `iter` The number of iterations of MEM algorithm.
+#' * `nmodes` The number of modes estimated by the MEM algorithm.
+#' * `modes` The coordinates of modes estimated by MEM algorithm.
+#' * `path` If requested, the coordinates of full paths to modes for each data point. 
+#' * `logdens` The log-density at the estimated modes.
+#' * `logvol` The log-volume used for denoising (if requested).
+#' * `classification` The modal clustering classification of input data points.
+#' 
+#' @author Luca Scrucca
+#' 
+#' @seealso [MclustMEM()].
+#' 
+#' @references 
+#' 
+#' Scrucca L. (2021) A fast and efficient Modal EM algorithm for
+#' Gaussian mixtures. *Statistical Analysis and Data Mining*, 14:4,
+#' 305–314. \doi{doi: 10.1002/sam.11527}
+#' 
+#' @export
 
 GaussianMixtureMEM <- function(data, pro, mu, sigma,
                                control = list(eps = 1e-5, 
@@ -205,30 +254,89 @@ GaussianMixtureMEM <- function(data, pro, mu, sigma,
 }
 
 
-MclustMEM <- function(mclustObject, data = NULL, ...)
-{
-# Modal EM for Gaussian Mixtures fitted via Mclust() or densityMclust()
 
-  stopifnot(inherits(mclustObject, "Mclust") | 
-            inherits(mclustObject, "densityMclust"))
+
+#' Modal EM algorithm for Gaussian Mixtures fitted via *mclust* package
+#' 
+#' @description
+#' Modal-clustering estimation by applying the Modal EM algorithm to Gaussian
+#' mixtures fitted using the *mclust* package.
+#' 
+#' @aliases MclustMEM print.MclustMEM summary.MclustMEM print.summary.MclustMEM
+#' 
+#' @param object An object of class `'Mclust'` or `'densityMclust'` 
+#' obtained by fitting a Gaussian mixture via, respectively, [mclust::Mclust()] 
+#' and [mclust::densityMclust()].
+#' @param data If provided, a numeric vector, matrix, or data frame of
+#' observations. If a matrix or data frame, rows correspond to observations
+#' (\eqn{n}) and columns correspond to variables (\eqn{d}). If not provided,
+#' the data used for fitting the Gaussian mixture model, and provided with the
+#' `object` argument, are used.
+#' @param \dots Further arguments passed to or from other methods.
+#' 
+#' @return 
+#' Returns an object of class `'MclustMEM'` with elements described in 
+#' [GaussianMixtureMEM()].
+#' 
+#' @details
+#' For more details see 
+#' \code{vignette("mclustAddons")}
+#' 
+#' @author Luca Scrucca
+#' 
+#' @seealso [GaussianMixtureMEM()], [plot.MclustMEM()].
+#' 
+#' @references 
+#' Scrucca L. (2021) A fast and efficient Modal EM algorithm for
+#' Gaussian mixtures. *Statistical Analysis and Data Mining*, 14:4,
+#' 305–314. \doi{doi:10.1002/sam.11527}
+#' 
+#' @examples
+#' \donttest{
+#' data(Baudry_etal_2010_JCGS_examples, package = "mclust")
+#' 
+#' plot(ex4.1)
+#' GMM <- Mclust(ex4.1)
+#' plot(GMM, what = "classification")
+#' MEM <- MclustMEM(GMM)
+#' MEM
+#' summary(MEM)
+#' plot(MEM)
+#' 
+#' plot(ex4.4.2)
+#' GMM <- Mclust(ex4.4.2)
+#' plot(GMM, what = "classification")
+#' MEM <- MclustMEM(GMM)
+#' MEM
+#' summary(MEM)
+#' plot(MEM, addDensity = FALSE)
+#' }
+#' @export
+
+MclustMEM <- function(object, data = NULL, ...)
+{
+
+  stopifnot(inherits(object, "Mclust") | 
+            inherits(object, "densityMclust"))
   if(is.null(data)) 
-    data <- mclustObject$data
-  if(is.null(colnames(data)) & (mclustObject$d == 1))
-    colnames(data) <- deparse(mclustObject$call$data)
+    data <- object$data
+  if(is.null(colnames(data)) & (object$d == 1))
+    colnames(data) <- deparse(object$call$data)
     
-  pro   <- mclustObject$parameters$pro[seq(mclustObject$G)]
-  mu    <- mclustObject$parameters$mean
-  sigma <- mclustObject$parameters$variance$sigma
+  pro   <- object$parameters$pro[seq(object$G)]
+  mu    <- object$parameters$mean
+  sigma <- object$parameters$variance$sigma
   
   obj <- GaussianMixtureMEM(data, pro = pro, mu = mu, sigma = sigma, ...)
   obj <- append(obj, list(call = match.call()), after = 0)
   obj <- append(obj, list(data = data), after = 1)
-  obj <- append(obj, list(modelName = mclustObject$modelName, 
-                          G = mclustObject$G), after = 5)
+  obj <- append(obj, list(modelName = object$modelName, 
+                          G = object$G), after = 5)
   class(obj) <- "MclustMEM"
   return(obj)
 }
 
+#' @exportS3Method
 print.MclustMEM <- function(x, digits = getOption("digits"), ...)
 {
   if(!is.null(cl <- x$call))
@@ -241,7 +349,8 @@ print.MclustMEM <- function(x, digits = getOption("digits"), ...)
   invisible()
 }
 
-
+#' @rdname MclustMEM
+#' @exportS3Method
 summary.MclustMEM <- function(object, ...)
 {
   out <- list(title = "Modal EM for GMMs",
@@ -254,19 +363,20 @@ summary.MclustMEM <- function(object, ...)
   return(out)
 }
 
+#' @exportS3Method
 print.summary.MclustMEM <- function(x, digits = getOption("digits"), ...)
 {
-  
-  if(!requireNamespace("cli", quietly = TRUE) |
-     !requireNamespace("crayon", quietly = TRUE))
-  {    
-    cat(paste0("-- ", x$title, " "))
-    cat(paste0(rep("-", 40-nchar(x$title)-4)), sep="", "\n")
-  } else 
-  {
-    cat(cli::rule(left = crayon::bold(x$title), 
+  # TODO: remove
+  # if(!requireNamespace("cli", quietly = TRUE) |
+  #    !requireNamespace("crayon", quietly = TRUE))
+  # {    
+  #   cat(paste0("-- ", x$title, " "))
+  #   cat(paste0(rep("-", 40-nchar(x$title)-4)), sep="", "\n")
+  # } else 
+  # {
+    cat(cli::rule(left = cli::style_bold(x$title), 
                   width = min(getOption("width"),40)), "\n")
-  }
+  # }
   #
   cat("\n")
   cat(paste("Data dimensions =", x$n, "x", x$d, "\n"))
@@ -282,6 +392,75 @@ print.summary.MclustMEM <- function(x, digits = getOption("digits"), ...)
   #
   invisible()  
 }
+
+
+#' Plotting method for modal-clustering based on Gaussian Mixtures
+#' 
+#' @description
+#' Plots for `MclustMEM` objects.
+#' 
+#' @param x An object of class `'densityMclustBounded'` obtained from a
+#' call to [densityMclustBounded()].
+#' @param dimens A vector of integers specifying the dimensions of the
+#' coordinate projections.
+#' @param addDensity A logical indicating whether or not to add density
+#' estimates to the plot.
+#' @param addPoints A logical indicating whether or not to add data points to
+#' the plot.
+#' @param symbols Either an integer or character vector assigning a plotting
+#' symbol to each unique class in `classification`. Elements in
+#' `symbols` correspond to classes in order of appearance in the sequence
+#' of observations (the order used by the function `unique`). The default
+#' is given by `mclust.options("classPlotSymbols")`.
+#' @param colors Either an integer or character vector assigning a color to
+#' each unique class in `classification`. Elements in `colors`
+#' correspond to classes in order of appearance in the sequence of observations
+#' (the order used by the function `unique`). The default is given by
+#' `mclust.options("classPlotColors")`.
+#' @param cex A vector of numerical values specifying the size of the plotting
+#' symbol for each unique class in `classification`. By default \code{cex
+#' = 1} for all classes is used.
+#' @param labels A vector of character strings for labelling the variables. The
+#' default is to use the column dimension names of `data`.
+#' @param cex.labels A numerical value specifying the size of the text labels.
+#' @param gap A numerical argument specifying the distance between subplots
+#' (see [pairs()]).
+#' @param \dots Further arguments passed to or from other methods.
+#' 
+#' @return No return value, called for side effects.
+#' 
+#' @author Luca Scrucca
+#' 
+#' @seealso [MclustMEM()].
+#' 
+#' @references 
+#' Scrucca L. (2021) A fast and efficient Modal EM algorithm for
+#' Gaussian mixtures. *Statistical Analysis and Data Mining*, 14:4,
+#' 305–314. \doi{doi: 10.1002/sam.11527}
+#' 
+#' @examples
+#' \donttest{
+#' # 1-d example
+#' GMM <- Mclust(iris$Petal.Length)
+#' MEM <- MclustMEM(GMM)
+#' plot(MEM)
+#' 
+#' # 2-d example
+#' data(Baudry_etal_2010_JCGS_examples)
+#' GMM <- Mclust(ex4.1)
+#' MEM <- MclustMEM(GMM)
+#' plot(MEM)
+#' plot(MEM, addPoints = FALSE)
+#' plot(MEM, addDensity = FALSE)
+#' 
+#' # 3-d example
+#' GMM <- Mclust(ex4.4.2)
+#' MEM <- MclustMEM(GMM)
+#' plot(MEM)
+#' plot(MEM, addPoints = FALSE)
+#' plot(MEM, addDensity = FALSE)
+#' }
+#' @exportS3Method
 
 plot.MclustMEM <- function(x, dimens = NULL, 
                            addDensity = TRUE, addPoints = TRUE, 
@@ -537,23 +716,5 @@ smallClusters <- function(n, d)
 # clustering, Electronic Journal of Statistics, 10:210-241
 
   (n*log(n)/20)^(d/(d+6))
-}
-
-gmm2margParams <- function(pro, mu, sigma, ...)
-{
-# Compute  marginal parameters from Gaussian mixture parameters
-# Source: Frühwirth-Schnatter (2006) Finite Mixture and Markov 
-#         Switching Models, Sec. 6.1.1
-  pro   <- as.vector(pro)
-  G     <- length(pro)  
-  d     <- length(mu)/G
-  mu    <- array(mu, dim = c(d, G))
-  sigma <- array(sigma, dim = c(d,d,G))
-  mean  <- matrix(apply(mu, 1, function(m) sum(pro*m)), 1, d)
-  var   <- matrix(as.double(0), d, d)
-  for(g in seq(G))
-    var <- var + pro[g]*sigma[,,g] + pro[g]*crossprod(mu[,g] - mean)
-  out <- list(mean = mean, variance = var)
-  return(out)
 }
 
