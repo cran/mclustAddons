@@ -47,7 +47,7 @@ Robin S. and Scrucca L. (2023) Mixture-based estimation of entropy.
 \code{\link[=EntropyGMM]{EntropyGMM()}} for entropy estimation.
 }
 \author{
-\strong{Maintainer}: Luca Scrucca \email{luca.scrucca@unipg.it} (\href{https://orcid.org/0000-0003-3826-0484}{ORCID}) [copyright holder]
+\strong{Maintainer}: Luca Scrucca \email{luca.scrucca@unibo.it} (\href{https://orcid.org/0000-0003-3826-0484}{ORCID}) [copyright holder]
 
 }
 \keyword{internal}

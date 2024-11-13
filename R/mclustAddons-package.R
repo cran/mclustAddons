@@ -87,5 +87,27 @@ NULL
 #' @keywords datasets
 NULL
 
-
+#' Gold price log-returns
+#' 
+#' Gold price log-returns for the year 2023 obtained from Yahoo Finance using
+#' the `quantmod` R package.
+#' Code used to download, format, and save the data:
+#' \preformatted{
+#' gold = quantmod::getSymbols("GC=F", src = "yahoo", auto.assign = FALSE)
+#' gold = quantmod::dailyReturn(gold, type = "log")
+#' gold = data.frame("date" = as.Date(zoo::index(gold)),
+#'                   "log.returns" = as.vector(gold$daily.returns), 
+#'                   row.names = NULL)
+#' }
+#' 
+#' @name gold
+#' @docType data
+#' @format A data frame with the following variables:
+#' \describe{
+#'   \item{date}{Date (format: yyyy-mmm-dd).} 
+#'   \item{log.returns}{Daily log-return.}
+#' }
+#' 
+#' @keywords datasets
+NULL
 

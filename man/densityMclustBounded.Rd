@@ -11,6 +11,7 @@ densityMclustBounded(
   data,
   G = NULL,
   modelNames = NULL,
+  criterion = c("BIC", "ICL"),
   lbound = NULL,
   ubound = NULL,
   lambda = c(-3, 3),
@@ -35,6 +36,9 @@ default \code{G=1:3}.}
 \item{modelNames}{A vector of character strings indicating the Gaussian
 mixture models to be fitted on the transformed-data space.  See
 \code{\link[mclust:mclustModelNames]{mclust::mclustModelNames()}} for a descripton of available models.}
+
+\item{criterion}{A character string specifying the information criterion for
+model selection. Possible values are \code{BIC} (default) or \code{ICL}.}
 
 \item{lbound}{Numeric vector proving lower bounds for variables.}
 

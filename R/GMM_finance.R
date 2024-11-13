@@ -32,32 +32,32 @@
 #' 
 #' @references 
 #' Scrucca L. (2024) Entropy-based volatility analysis of financial 
-#'   log-returns using Gaussian mixture models. Unpublished manuscript.
+#'   log-returns using Gaussian mixture models. *Entropy*, 26(11), 907. 
+#'   \doi{10.3390/e26110907}
 #' 
 #' @examples
-#' set.seed(123)
-#' z = sample(1:2, size = 250, replace = TRUE, prob = c(0.8, 0.2))
-#' y = double(length(z))
-#' y[z == 1] = rnorm(sum(z == 1), 0, 1)
-#' y[z == 2] = rnorm(sum(z == 2), -0.5, 2)
-#' GMM = GMMlogreturn(y)
-#' summary(GMM)
-#' y0 = extendrange(GMM$data, f = 0.1)
-#' y0 = seq(min(y0), max(y0), length = 1000)
-#' plot(GMM, what = "density", data = y, xlab = "log-returns",
-#'      breaks = 21, col = 4, lwd = 2)
+#' data(gold)
+#' head(gold)
+#' mod = GMMlogreturn(gold$log.returns)
+#' summary(mod)
+#' plot(mod, what = "density", data = gold$log.returns,
+#'      xlab = "log-returns", col = 4, lwd = 2)
 #' 
 #' @export
 
 GMMlogreturn <- function(y, ...)
 {
-  if(NCOL(y) > 1)
-    stop("Only univariate log-return distributions can be modeled!")
+  mc <- match.call()
   args <- list(...)
+  y <- na.omit(data.matrix(y))
+  varname <- deparse(mc$y)
+  if(ncol(y) > 1)
+    stop("Only univariate log-return distributions can be modeled!")
+  if(is.null(colnames(y))) colnames(y) <- varname
   modelNames <- if(is.null(args$modelNames)) "V" else args$modelNames
   G <- if(is.null(args$G)) 1:9 else args$G
-  args$modelNames <- args$G <- NULL
-  
+  args$modelNames <- args$G <- args$plot <- NULL
+
   # fit model
   mod <- do.call("densityMclust", 
                  c(list(data = y, 

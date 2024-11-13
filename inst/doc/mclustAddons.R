@@ -124,5 +124,26 @@ mod = densityMclust(iris[,1:4], plot = FALSE)
 EntropyGMM(mod)       # GMM-based entropy estimate
 
 ## -----------------------------------------------------------------------------
+data(gold)
+head(gold)
+
+# GMM modeling 
+mod = GMMlogreturn(gold$log.returns)
+summary(mod)
+plot(mod, what = "BIC")
+plot(mod, what = "density", data = gold$log.returns)
+plot(mod, what = "diagnostic")
+
+# compare to single Gaussian model
+mod1 = GMMlogreturn(gold$log.returns, G = 1)
+y0 = extendrange(mod$data, f = 0.1)
+y0 = seq(min(y0), max(y0), length = 1000)
+plot(mod, what = "density", data = gold$log.returns, col = "steelblue",
+     xlab = "Gold price log-returns", ylab = "Density")
+lines(y0, predict(mod1, what = "dens", newdata = y0), col = "red3")
+legend("topright", legend = c("Gaussian", "GMM"), lty = c(1,1),
+       col = c("red3", "steelblue"), inset = 0.02)
+
+## -----------------------------------------------------------------------------
 sessionInfo()
 

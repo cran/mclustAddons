@@ -15,6 +15,8 @@
 #' @param modelNames A vector of character strings indicating the Gaussian
 #' mixture models to be fitted on the transformed-data space.  See
 #' [mclust::mclustModelNames()] for a descripton of available models.
+#' @param criterion A character string specifying the information criterion for 
+#' model selection. Possible values are `BIC` (default) or `ICL`. 
 #' @param lbound Numeric vector proving lower bounds for variables.
 #' @param ubound Numeric vector proving upper bounds for variables.
 #' @param lambda A numeric vector providing the range (min and max) of searched
@@ -138,6 +140,7 @@
 
 densityMclustBounded <- function(data, 
                                  G = NULL, modelNames = NULL,
+                                 criterion = c("BIC", "ICL"),
                                  lbound = NULL, 
                                  ubound = NULL, 
                                  lambda = c(-3, 3),
@@ -176,6 +179,9 @@ densityMclustBounded <- function(data,
     }
   }
 
+  # check criterion
+  criterion <- match.arg(criterion, several.ok = FALSE)
+  
   # check lower bound
   lbound <- if(is.null(lbound)) rep(-Inf, d) # rep(as.double(NA), d)
             else                as.numeric(lbound)
@@ -286,8 +292,17 @@ densityMclustBounded <- function(data,
                    nstart = nstart,
                    ...)
   }
+  
   BIC <- sapply(fit, function(mod) if(is.null(mod)) NA else mod$bic)
-  i <- which(BIC == max(BIC, na.rm = TRUE))[1]
+  ICL <- sapply(fit, function(mod) if(is.null(mod)) NA else mod$icl)
+  i <- if(criterion == "BIC") 
+  {
+    which(BIC == max(BIC, na.rm = TRUE))[1] 
+  } else
+  {
+    which(ICL == max(ICL, na.rm = TRUE))[1] 
+  }
+  
   mod <- fit[[i]]
   mod <- append(mod, list(call = mc), after = 0)
   BIC <- matrix(BIC, length(G), length(modelNames), byrow = TRUE,
@@ -297,6 +312,10 @@ densityMclustBounded <- function(data,
   attr(BIC, "prior") <- mod$prior
   attr(BIC, "control") <- mod$control
   mod$BIC <- BIC
+  ICL <- matrix(ICL, length(G), length(modelNames), byrow = TRUE,
+                dimnames = list(G, modelNames))
+  class(ICL) <- "mclustICL"
+  mod$ICL <- ICL
   mod$seed <- seed
   mod$lambdaRange <- lambda
   mod$hypvol <- if(is.na(mod$Vinv)) NA else 1/Vinv
@@ -366,7 +385,7 @@ summary.densityMclustBounded <- function(object, parameters = FALSE, ...)
               G = G, modelName = object$modelName, 
               boundaries = tab1, lambda = tab2,
               loglik = object$loglik, df = object$df, 
-              bic = object$bic, icl = mclust:::icl.Mclust(object),
+              bic = object$bic, icl = object$icl,
               pro = pro, mean = mean, variance = sigma,
               noise = noise, prior = attr(object$BIC, "prior"), 
               printParameters = parameters)
@@ -519,6 +538,7 @@ predict.densityMclustBounded <- function(object, newdata,
                        newdata[,j] < object$ubound[j] ) }
   inrange <- apply(inrange, 1, all)
   obj <- object
+  obj$call <- NULL
   obj$data <- newdata[inrange,,drop=FALSE]
   out <- do.call("tdens", c(obj, what = what, logarithm = logarithm))
   
@@ -553,7 +573,7 @@ densityBounded <- function(data, G, modelName,
                            optimControl = list(fnscale = -1,
                                                maxit = 10, 
                                                parscale = 0.1,
-                                               usegr = TRUE),
+                                               usegr = FALSE),
                            nstart = 25,
                            warn = mclust.options("warn"), 
                            verbose = FALSE, 
@@ -802,12 +822,15 @@ densityBounded <- function(data, G, modelName,
   mod$df <- nMclustParams(modelName, d, G) + 
             sum(!lambdaFixed) + 1*(!is.null(Vinv))
   mod$bic <- 2*loglik - mod$df*log(n)
+  C <- matrix(0, n, ncol(mod$z))
+  for(i in 1:n) C[i, which.max(z[i, ])] <- 1
+  mod$icl <- mod$bic + 2 * sum(C * ifelse(mod$z > 0, log(mod$z), 0))
   mod$classification <- cl[map(mod$z)]
   mod$uncertainty <- c(1 - rowMax(mod$z))
   mod$density <- do.call("tdens", mod)
   orderedNames <- c("data", "n", "d", "modelName", "G",
                     "lbound", "ubound", "epsbound", "lambdaInit",
-                    "tdata", "loglik", "iter", "df", "bic", 
+                    "tdata", "loglik", "iter", "df", "bic", "icl",
                     "lambda", "parameters", "Vinv", 
                     "z", "classification", "uncertainty",
                     "density")

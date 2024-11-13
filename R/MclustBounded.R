@@ -83,7 +83,7 @@ summary.MclustBounded <- function(object, classification = TRUE, parameters = FA
               G = G, modelName = object$modelName, 
               boundaries = tab1, lambda = tab2,
               loglik = object$loglik, df = object$df, 
-              bic = object$bic, icl = mclust:::icl.Mclust(object),
+              bic = object$bic, icl = object$icl,
               pro = pro, mean = mean, variance = sigma,
               noise = noise, prior = attr(object$BIC, "prior"), 
               classification = object$classification, 
@@ -494,7 +494,7 @@ MclustBoundedParameters <- function(object, nsim = 1e6, ...)
   out <- list(mean     = matrix(as.double(NA), nrow = d, ncol = G),
               variance = matrix(as.double(NA), nrow = d, ncol = G))
   
-  for( k in seq(G))
+  for(k in seq(G))
   {
     i <- which(tsim[,1] == k)
     xsim <- matrix(as.double(NA), nrow = length(i), ncol = d)

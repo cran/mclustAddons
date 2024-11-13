@@ -1,4 +1,9 @@
-# mclustAddons 0.9 (2024-09) NOT ON CRAN
+# mclustAddons 0.9.1 (2024-11)
+
+-  Change default argument `optimControl = list(..., usegr = FALSE)` in
+   `densityMclustBounded()` and `MclustBounded()`.
+
+# mclustAddons 0.9 (2024-09)
 
 -  Added `GMMlogreturn()` to model log-returns financial data via GMMs.
 -  Added `VaR()` and `ES()` to compute risk measures from GMMs.
@@ -6,6 +11,8 @@
   subset of variables while to estimate lambda parameters for the 
   remaining variables.
 - `densityMclustBounded()` added noise component.
+- `densityMclustBounded()` and `MclustBounded()` include an optional argument
+  `criterion` to specify the information criterion for model selection.
 - converted all documentation to use `roxygen2` package.
 - clean-up package dependencies.
 
