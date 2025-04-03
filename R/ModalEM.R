@@ -374,8 +374,8 @@ print.summary.MclustMEM <- function(x, digits = getOption("digits"), ...)
   #   cat(paste0(rep("-", 40-nchar(x$title)-4)), sep="", "\n")
   # } else 
   # {
-    cat(cli::rule(left = cli::style_bold(x$title), 
-                  width = min(getOption("width"),40)), "\n")
+    cli::cat_rule(left = cli::style_bold(x$title), 
+                  width = min(getOption("width"),40))
   # }
   #
   cat("\n")

@@ -202,6 +202,12 @@ densityMclustBounded <- function(data,
      stop("upper bound <= than max of input data for variable(s) ", 
           paste(out.ubound, collapse =" "))
   
+  if(all(is.infinite(lbound)) & all(is.infinite(ubound)))
+  {
+    warning("Both lbound(s) and ubound(s) are not provided or infinite!")
+    return()
+  }
+  
   # check lambda
   lambda <- na.omit(lambda)
   lambda <- if(is.matrix(lambda)) lambda 
@@ -396,17 +402,7 @@ summary.densityMclustBounded <- function(object, parameters = FALSE, ...)
 #' @exportS3Method
 print.summary.densityMclustBounded <- function(x, digits = getOption("digits"), ...)
 {
-  # TODO: remove
-  # if(!requireNamespace("cli", quietly = TRUE) |
-  #    !requireNamespace("crayon", quietly = TRUE))
-  # {    
-  #   cat(paste0("-- ", x$title, " "))
-  #   cat(paste0(rep("-", 59 - nchar(x$title)-4)), sep="", "\n")
-  # } else 
-  # {
-    cat(cli::rule(left = cli::style_bold(x$title), width = 59), "\n")
-  # }
-  #
+  cli::cat_rule(left = cli::style_bold(x$title), width = 59)
   print(x$boundaries, digits = digits)
   #
   if(is.null(x$modelName))
@@ -629,22 +625,24 @@ densityBounded <- function(data, G, modelName,
   # starting value for lambda
   for(j in seq(d))
   {
-    lambda[j] <- if(lambdaFixed[j]) 
+    lambda[j] <- if(lambdaFixed[j])
     { 
       mean(lambdaRange[j]) 
     } else
-    {      
+    { 
       lambdaOpt <- optim(par = 1,
                          fn = marginalTransfLoglik,
                          method = "L-BFGS-B",
                          lower = lambdaRange[j,1],
                          upper = lambdaRange[j,2],
-                         control = list(fnscale = -1, parscale = 0.1),
+                         control = list(fnscale = optimControl$fnscale, 
+                                        parscale = optimControl$parscale[j]),
                          # parameters of marginalTransfLoglik()
                          data = x[,j],
                          lbound = lbound[j],
                          ubound = ubound[j],
                          epsbound = epsbound[j])
+      
       lambdaOpt$par
     }
   }
@@ -823,7 +821,7 @@ densityBounded <- function(data, G, modelName,
             sum(!lambdaFixed) + 1*(!is.null(Vinv))
   mod$bic <- 2*loglik - mod$df*log(n)
   C <- matrix(0, n, ncol(mod$z))
-  for(i in 1:n) C[i, which.max(z[i, ])] <- 1
+  for(i in 1:n) C[i, which.max(mod$z[i, ])] <- 1
   mod$icl <- mod$bic + 2 * sum(C * ifelse(mod$z > 0, log(mod$z), 0))
   mod$classification <- cl[map(mod$z)]
   mod$uncertainty <- c(1 - rowMax(mod$z))
@@ -839,9 +837,18 @@ densityBounded <- function(data, G, modelName,
 
 # loglik for data-transformed mixture
 tloglik <- function(data, modelName, G, 
-                    lambda = 1, lbound = -Inf, ubound = +Inf, 
-                    epsbound, parameters, ...)
+                    lambda = 1, 
+                    lbound = -Inf, ubound = +Inf, 
+                    epsbound, parameters, 
+                    ...)
 {
+  # browser()
+  # data <- data.matrix(data)
+  # d <- ncol(data)
+  # lambdaRange <- if(is.matrix(lambda)) lambda else matrix(lambda, nrow = d, ncol = 2, byrow = TRUE)
+  # lambdaFixed <- (apply(lambdaRange, 1, diff) == 0)
+  # lambda[lambdaFixed] <- mean(lambdaRange[lambdaFixed])
+
   l <- sum(tdens(data = data, 
                  modelName = modelName, G = G, 
                  lambda = lambda, 
@@ -1830,19 +1837,29 @@ densityMclustBounded.diagnostic <- function(object,
 #' plot(x, xx, ylab = "t^-1(y)"); abline(0,1)
 #' 
 #' @export
-rangepowerTransform <- function(x, lbound = -Inf, ubound = +Inf, lambda = 1)
+rangepowerTransform <- function(x, lbound = NULL, ubound = NULL, lambda = 1)
 { 
   x <- as.vector(x)
-  tx <- rangeTransform(x, lbound = lbound, ubound = ubound)
+  if(is.null(lbound) & is.null(ubound)) return(x)
+  tx <- rangeTransform(x, 
+                       lbound = ifelse(is.null(lbound), NA, lbound),
+                       ubound = ifelse(is.null(ubound), NA, ubound))
   tx <- powerTransform(tx, lambda = lambda)
   return(tx)
 }
 
 #' @rdname rangepowerTransform
 #' @export
-rangepowerBackTransform <- function(y, lbound = -Inf, ubound = +Inf, lambda = 1)
+rangepowerBackTransform <- function(y, lbound = NULL, ubound = NULL, lambda = 1)
 { 
   y <- as.vector(y)
+  if(is.null(lbound) & is.null(ubound)) 
+    return(y)
+  if(is.null(lbound))
+    stop("lbound must be provided!")
+  if(is.null(ubound))
+    ubound <- +Inf
+
   # power back-transform
   if(lambda == 0)
   {
@@ -1857,7 +1874,6 @@ rangepowerBackTransform <- function(y, lbound = -Inf, ubound = +Inf, lambda = 1)
     ty[i] <- exp(predict(lm(log(ty) ~ y, subset = which(!i)), 
                          newdata = list(y = y[i]))) 
   }
-
   # range back-transform
   if(is.finite(lbound) & is.finite(ubound))
   { 

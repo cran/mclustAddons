@@ -141,8 +141,7 @@ summary.GMMlogreturn <- function(object, ...)
 
 print.summary.GMMlogreturn <- function(x, digits = getOption("digits")-2, ...)
 {
-  cat(cli::rule(left = cli::style_bold(x$title)))
-  cat("\n")
+  cli::cat_rule(left = cli::style_bold(x$title))
   cat(paste0("Model: GMM(", x$modelName, ",", x$G, ")"))
   if(x$noise) cat(" and a noise component")
   if(!is.null(x$prior))

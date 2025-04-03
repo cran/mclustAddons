@@ -5,9 +5,9 @@
 \alias{rangepowerBackTransform}
 \title{Range–power transformation}
 \usage{
-rangepowerTransform(x, lbound = -Inf, ubound = +Inf, lambda = 1)
+rangepowerTransform(x, lbound = NULL, ubound = NULL, lambda = 1)
 
-rangepowerBackTransform(y, lbound = -Inf, ubound = +Inf, lambda = 1)
+rangepowerBackTransform(y, lbound = NULL, ubound = NULL, lambda = 1)
 }
 \arguments{
 \item{x}{A numeric vector of data values.}

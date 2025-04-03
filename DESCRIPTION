@@ -1,7 +1,7 @@
 Package: mclustAddons
 Title: Addons for the 'mclust' Package
-Version: 0.9.1
-Date: 2024-11-12
+Version: 0.9.2
+Date: 2025-04-03
 Authors@R: 
     person("Luca", "Scrucca", , "luca.scrucca@unibo.it", 
            role = c("aut", "cre", "cph"),
@@ -16,18 +16,18 @@ Description: Extend the functionality of the 'mclust' package for Gaussian
     financial log-returns (Scrucca, 2024 <doi:10.3390/e26110907>).
 License: GPL (>= 2)
 URL: https://mclust-org.github.io/mclustAddons/
-Depends: mclust (>= 6.1), R (>= 4.0)
+Depends: mclust (>= 6.1.1), R (>= 4.3)
 Imports: cli, doParallel, doRNG (>= 1.6), foreach, graphics, grDevices,
         iterators, knitr (>= 1.12), parallel, Rcpp (>= 1.0), rmarkdown
         (>= 0.9), stats, utils
-LinkingTo: Rcpp, RcppArmadillo (>= 0.10)
+LinkingTo: Rcpp (>= 1.0), RcppArmadillo (>= 14.4)
 VignetteBuilder: knitr
 ByteCompile: true
 Encoding: UTF-8
 NeedsCompilation: yes
 Repository: CRAN
 RoxygenNote: 7.3.2
-Packaged: 2024-11-12 09:54:22 UTC; luca
+Packaged: 2025-04-03 06:23:12 UTC; luca
 Author: Luca Scrucca [aut, cre, cph] (<https://orcid.org/0000-0003-3826-0484>)
 Maintainer: Luca Scrucca <luca.scrucca@unibo.it>
-Date/Publication: 2024-11-13 08:30:05 UTC
+Date/Publication: 2025-04-03 06:40:02 UTC

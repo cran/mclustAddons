@@ -34,9 +34,9 @@
 #' [densityMclustBounded()], [predict.MclustBounded()], [plot.MclustBounded()].
 #' 
 #' @references 
-#' Scrucca L. (2019) A transformation-based approach to Gaussian
-#' mixture density estimation for bounded data. *Biometrical Journal*,
-#' 61:4, 873–888. \doi{doi:10.1002/bimj.201800174}
+#' Scrucca L. (2024) A model-based clustering approach for bounded data using
+#' transformation-based Gaussian mixture models. *Under review*.
+#' arXiv pre-print available at http://arxiv.org/abs/2412.13572
 #' 
 #' @export
 
@@ -47,6 +47,8 @@ MclustBounded <- function(data, ...)
   if(is.null(obj)) return(obj)
   obj$call <- mc
   obj$density <- NULL
+  obj$entropy <- with(obj, -rowSums(z * ifelse(z > 0, log(z), 0)))
+  obj$nce     <- with(obj, ifelse(G == 1, 0, mean(entropy/log(G), na.rm = TRUE)))
   if(obj$d == 1) 
     colnames(obj$data) <- deparse(mc$data)
   class(obj) <- c("MclustBounded", "densityMclustBounded")
@@ -96,17 +98,7 @@ summary.MclustBounded <- function(object, classification = TRUE, parameters = FA
 #' @exportS3Method
 print.summary.MclustBounded <- function(x, digits = getOption("digits"), ...)
 {
-  # TODO: remove
-  # if(!requireNamespace("cli", quietly = TRUE) |
-  #    !requireNamespace("crayon", quietly = TRUE))
-  # {    
-  #   cat(paste0("-- ", x$title, " "))
-  #   cat(paste0(rep("-", 59 - nchar(x$title)-4)), sep="", "\n")
-  # } else 
-  # {
-    cat(cli::rule(left = cli::style_bold(x$title), width = 59), "\n")
-  # }
-  #
+  cli::cat_rule(left = cli::style_bold(x$title), width = 59)
   print(x$boundaries, digits = digits)
   #
   if(is.null(x$modelName))

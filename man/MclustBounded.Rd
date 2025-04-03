@@ -39,9 +39,9 @@ For more details see
 \code{vignette("mclustAddons")}
 }
 \references{
-Scrucca L. (2019) A transformation-based approach to Gaussian
-mixture density estimation for bounded data. \emph{Biometrical Journal},
-61:4, 873–888. \doi{doi:10.1002/bimj.201800174}
+Scrucca L. (2024) A model-based clustering approach for bounded data using
+transformation-based Gaussian mixture models. \emph{Under review}.
+arXiv pre-print available at http://arxiv.org/abs/2412.13572
 }
 \seealso{
 \code{\link[=densityMclustBounded]{densityMclustBounded()}}, \code{\link[=predict.MclustBounded]{predict.MclustBounded()}}, \code{\link[=plot.MclustBounded]{plot.MclustBounded()}}.

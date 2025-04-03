@@ -1,3 +1,9 @@
+# mclustAddons 0.9.2 (2025-04)
+
+- Bug fixes.
+- Added checks on provided lower and upper bounds in `densityMclustBounded()`.
+- Added (classification) entropy for data observations and NCE (Normalized Classification Rntropy) to objects returned by `MclustBounded()`.
+
 # mclustAddons 0.9.1 (2024-11)
 
 -  Change default argument `optimControl = list(..., usegr = FALSE)` in
